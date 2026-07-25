@@ -1,13 +1,12 @@
 """Circuit Breaker logic for Google ADK Multi-Agent Scrum Workflows.
 
 Evaluates QA JSON audit responses (`{"status": "PASS"|"FAIL", ...}`), updates session state,
-increments retry counters, and trips the circuit breaker if retry thresholds (`retry_count >= 3`)
-are exceeded to prevent infinite LLM execution loops and budget exhaustion.
+records iteration history, increments retry counters, and trips the circuit breaker if retry thresholds
+(`retry_count >= 3`) are exceeded to prevent infinite LLM execution loops and budget exhaustion.
 """
 import json
 import logging
-import re
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from orchestration.state import ScrumSessionStateModel
 
@@ -25,9 +24,10 @@ class CircuitBreakerTrippedException(Exception):
 
 
 def _extract_json_from_llm_output(raw_output: str) -> Dict[str, Any]:
-    """Extract and parse a JSON object from raw LLM output strings.
+    """Extract and parse a JSON object from raw LLM output strings using brace tracking.
 
-    Handles standard JSON strings as well as markdown-formatted JSON code blocks.
+    Handles standard JSON strings as well as markdown-formatted JSON code blocks containing
+    nested JSON objects or arrays without truncation bugs.
 
     Args:
         raw_output: Raw text output from the qa_sec agent.
@@ -40,24 +40,71 @@ def _extract_json_from_llm_output(raw_output: str) -> Dict[str, Any]:
     """
     cleaned = raw_output.strip()
 
-    # Attempt to extract from markdown fenced code block
-    json_block_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", cleaned, re.DOTALL)
-    if json_block_match:
-        cleaned = json_block_match.group(1).strip()
-    elif not (cleaned.startswith("{") and cleaned.endswith("}")):
-        # Attempt to find first '{' and last '}'
-        start_idx = cleaned.find("{")
+    # Step 1: Strip outer markdown fenced code block delimiters if present
+    if "```" in cleaned:
+        lines = cleaned.splitlines()
+        code_lines = []
+        inside_block = False
+        for line in lines:
+            if line.strip().startswith("```"):
+                if inside_block:
+                    break  # End of fenced block
+                inside_block = True
+                continue
+            if inside_block:
+                code_lines.append(line)
+        if code_lines:
+            cleaned = "\n".join(code_lines).strip()
+
+    # Step 2: Use brace balancing to find the outermost '{' and '}'
+    start_idx = cleaned.find("{")
+    if start_idx == -1:
+        raise ValueError("No open brace '{' found in raw output string.")
+
+    depth = 0
+    end_idx = -1
+    in_string = False
+    escape = False
+
+    for i in range(start_idx, len(cleaned)):
+        char = cleaned[i]
+
+        if escape:
+            escape = False
+            continue
+
+        if char == "\\" and in_string:
+            escape = True
+            continue
+
+        if char == '"':
+            in_string = not in_string
+            continue
+
+        if not in_string:
+            if char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    end_idx = i
+                    break
+
+    if end_idx == -1:
+        # Fallback to last index of '}'
         end_idx = cleaned.rfind("}")
-        if start_idx != -1 and end_idx != -1 and start_idx < end_idx:
-            cleaned = cleaned[start_idx : end_idx + 1]
+        if end_idx == -1 or end_idx <= start_idx:
+            raise ValueError("No matching closing brace '}' found in raw output string.")
+
+    json_str = cleaned[start_idx : end_idx + 1]
 
     try:
-        data = json.loads(cleaned)
+        data = json.loads(json_str)
         if not isinstance(data, dict):
-            raise ValueError("Extracted JSON is not an object/mapping.")
+            raise ValueError("Extracted JSON payload is not a mapping object.")
         return data
     except Exception as e:
-        logger.error(f"Failed to parse QA JSON response:\n{raw_output}\nError: {e}")
+        logger.error(f"Failed to parse QA JSON payload:\n{json_str}\nError: {e}")
         raise ValueError(f"Circuit breaker failed to parse QA JSON response: {e}") from e
 
 
@@ -65,13 +112,15 @@ def evaluate_qa_feedback_and_break(
     state: ScrumSessionStateModel,
     qa_raw_output: str,
     max_retries: int = DEFAULT_CIRCUIT_BREAKER_THRESHOLD,
+    verify_ci_func: Optional[Any] = None,
 ) -> Tuple[bool, ScrumSessionStateModel]:
-    """Evaluate qa_sec audit response, update state, and check circuit breaker threshold.
+    """Evaluate qa_sec audit response, update state, record history, and check circuit breaker threshold.
 
     Args:
         state: Current ScrumSessionStateModel instance.
         qa_raw_output: Raw JSON string emitted by the qa_sec agent.
         max_retries: Maximum permitted retries before tripping circuit breaker (default: 3).
+        verify_ci_func: Optional check_ci_status callable to verify real CI build state on PASS.
 
     Returns:
         Tuple of (should_continue_loop: bool, updated_state: ScrumSessionStateModel).
@@ -89,6 +138,8 @@ def evaluate_qa_feedback_and_break(
         state.retry_count += 1
         state.feedback = f"QA Agent emitted invalid JSON format: {e}. Please adhere strictly to JSON schema."
         state.status = "FAIL"
+        state.record_iteration("qa_sec", "audit", "INVALID_FORMAT", state.feedback)
+
         if state.retry_count >= max_retries:
             state.status = "CIRCUIT_BROKEN"
             raise CircuitBreakerTrippedException(
@@ -108,15 +159,39 @@ def evaluate_qa_feedback_and_break(
     state.failed_criteria = [str(c) for c in failed_criteria]
 
     if status == "PASS":
+        # Optionally double-verify real CI status if function and PR info provided
+        if verify_ci_func and state.repo_name and state.pr_number:
+            try:
+                ci_res = verify_ci_func(state.repo_name, state.pr_number)
+                if not ci_res.get("ci_passed", False):
+                    logger.warning(f"QA output PASS, but GitHub CI checks failed for PR #{state.pr_number}.")
+                    state.retry_count += 1
+                    state.status = "FAIL"
+                    state.ci_passed = False
+                    state.feedback = f"QA auditor approved PR, but automated GitHub CI checks failed: {ci_res.get('state_summary')}."
+                    state.record_iteration("circuit_breaker", "ci_check", "FAIL", state.feedback)
+                    if state.retry_count >= max_retries:
+                        state.status = "CIRCUIT_BROKEN"
+                        raise CircuitBreakerTrippedException(
+                            f"Circuit breaker tripped for '{state.ticket_id}': Exceeded retries due to failing CI checks.",
+                            state=state,
+                        )
+                    return True, state
+            except Exception as e:
+                logger.error(f"Error executing verify_ci_func: {e}")
+
         logger.info(f"QA Audit PASSED for ticket '{state.ticket_id}'. Terminating sprint loop successfully.")
         state.status = "PASS"
         state.ci_passed = True
+        state.record_iteration("qa_sec", "audit", "PASS", feedback)
         return False, state  # Do not continue loop; sprint complete
 
     if status == "FAIL":
         state.retry_count += 1
         state.status = "FAIL"
         state.ci_passed = False
+        state.record_iteration("qa_sec", "audit", "FAIL", feedback)
+
         logger.warning(
             f"QA Audit FAILED for ticket '{state.ticket_id}'. Incremented retry count to {state.retry_count}/{max_retries}.\n"
             f"Failed criteria: {state.failed_criteria}\nFeedback: {state.feedback}"
@@ -137,6 +212,8 @@ def evaluate_qa_feedback_and_break(
     state.retry_count += 1
     state.status = "FAIL"
     state.feedback = f"QA returned unrecognized status '{status}'. Expected 'PASS' or 'FAIL'. {feedback}"
+    state.record_iteration("qa_sec", "audit", "UNKNOWN_STATUS", state.feedback)
+
     if state.retry_count >= max_retries:
         state.status = "CIRCUIT_BROKEN"
         raise CircuitBreakerTrippedException(

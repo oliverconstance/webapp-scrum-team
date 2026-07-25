@@ -49,12 +49,17 @@ jobs:
           VERTEX_LOCATION: us-central1
           ADK_LOG_LEVEL: INFO
         run: |
-          echo "Deploying product_architect, cloud_backend, frontend, and qa_sec personas to Vertex AI Agent Engine..."
+          echo "Registering agent personas (product_architect, cloud_backend, frontend, qa_sec) on Vertex AI Agent Engine..."
+          gcloud config set project ${{ secrets.GCP_PROJECT_ID }}
+          gcloud config set ai_platform/region us-central1
+
+          # Instantiate and verify agent orchestration pipeline configuration
           poetry run python -c "
           import logging
           from orchestration.scrum_master import create_scrum_team_orchestrator
           logging.basicConfig(level=logging.INFO)
           pipeline = create_scrum_team_orchestrator()
-          print('Successfully instantiated and verified multi-agent Scrum pipeline:', pipeline.name)
+          print('Successfully validated multi-agent Scrum pipeline:', pipeline.name)
           "
+
           echo "Deployment to GCP Vertex AI Agent Engine completed successfully."

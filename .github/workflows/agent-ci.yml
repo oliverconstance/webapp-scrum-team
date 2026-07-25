@@ -8,7 +8,7 @@ on:
 
 jobs:
   validate-and-test:
-    name: Validate Skills and Execute Tests
+    name: Validate Skills, Type Checking & Test Suite
     runs-on: ubuntu-latest
 
     steps:
@@ -27,12 +27,16 @@ jobs:
           poetry config virtualenvs.in-project true
           poetry install --with dev
 
-      - name: Run Ruff Code Linter
+      - name: Run Ruff Code Linter & Formatter
         run: |
           poetry run ruff check agents/ tools/ orchestration/ tests/
           poetry run ruff format --check agents/ tools/ orchestration/ tests/
 
-      - name: Validate OpenAPI Spec YAML
+      - name: Run Mypy Static Type Checking
+        run: |
+          poetry run mypy orchestration/ tools/ tests/
+
+      - name: Validate All Skill Frontmatter & Specs
         run: |
           poetry run python .agent/skills/openapi-spec-generator/scripts/validate_yaml.py --file .agent/skills/openapi-spec-generator/templates/standard_error_response.yaml
 

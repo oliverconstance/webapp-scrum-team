@@ -1,13 +1,14 @@
 """Git and GitHub operation tools using PyGithub for Google ADK Agents.
 
-Provides robust, typed functions to create feature branches, commit multiple files,
-and open pull requests against GitHub repositories with full error handling.
+Provides robust, typed functions to create feature branches, commit multiple files atomically
+using Git Data Tree APIs, and open pull requests against GitHub repositories.
 """
 import logging
 import os
 from typing import Any, Dict, Optional
 
 from github import Github, GithubException
+from github.InputGitTreeElement import InputGitTreeElement
 from github.Repository import Repository
 
 logger = logging.getLogger(__name__)
@@ -27,7 +28,6 @@ def _get_github_client(token: Optional[str] = None) -> Github:
     """
     auth_token = token or os.environ.get("GITHUB_TOKEN")
     if not auth_token:
-        # Check if we should fallback or raise an error
         raise ValueError(
             "GitHub authentication token missing. Please set GITHUB_TOKEN in environment "
             "or configure GitHub App credentials."
@@ -63,7 +63,7 @@ def create_feature_branch_and_commit(
     base_branch: str = "main",
     token: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Create a new feature branch from base branch and commit a set of files.
+    """Create a feature branch and commit multiple files ATOMICALLY using Git Data Tree API.
 
     Args:
         repo_name: Full GitHub repository name (e.g., 'owner/repository').
@@ -95,56 +95,55 @@ def create_feature_branch_and_commit(
         # Create or get feature branch ref
         ref_path = f"heads/{branch_name}"
         try:
-            repo.create_git_ref(ref=f"refs/{ref_path}", sha=base_sha)
+            target_ref = repo.create_git_ref(ref=f"refs/{ref_path}", sha=base_sha)
+            current_head_sha = base_sha
             logger.info(f"Created new branch '{branch_name}' from '{base_branch}' ({base_sha[:7]}).")
         except GithubException as e:
             if e.status == 422:
-                logger.info(f"Branch '{branch_name}' already exists. Updating existing branch.")
+                logger.info(f"Branch '{branch_name}' already exists. Fetching ref.")
+                target_ref = repo.get_git_ref(ref_path)
+                current_head_sha = target_ref.object.sha
             else:
                 raise RuntimeError(f"Failed to create branch '{branch_name}': {e.data}") from e
 
-        # Commit files sequentially or via git tree
+        # Build Atomic Git Tree Elements
+        tree_elements = []
         committed_files = []
-        latest_sha = base_sha
         for file_path, content in files.items():
-            try:
-                # Check if file already exists on branch
-                existing_file = repo.get_contents(file_path, ref=branch_name)
-                if not isinstance(existing_file, list):
-                    # Update file
-                    res = repo.update_file(
-                        path=file_path,
-                        message=commit_message,
-                        content=content,
-                        sha=existing_file.sha,
-                        branch=branch_name,
-                    )
-                    latest_sha = res["commit"].sha
-                    committed_files.append(file_path)
-            except GithubException as e:
-                if e.status == 404:
-                    # Create file
-                    res = repo.create_file(
-                        path=file_path,
-                        message=commit_message,
-                        content=content,
-                        branch=branch_name,
-                    )
-                    latest_sha = res["commit"].sha
-                    committed_files.append(file_path)
-                else:
-                    raise RuntimeError(f"Failed to commit file '{file_path}': {e.data}") from e
+            # Create blob for file content
+            blob = repo.create_git_blob(content, "utf-8")
+            element = InputGitTreeElement(
+                path=file_path,
+                mode="100644",
+                type="blob",
+                sha=blob.sha,
+            )
+            tree_elements.append(element)
+            committed_files.append(file_path)
+
+        # Create new Git Tree based on current branch head
+        base_tree = repo.get_git_tree(current_head_sha)
+        new_tree = repo.create_git_tree(tree_elements, base_tree=base_tree)
+
+        # Create single atomic commit
+        parent_commit = repo.get_git_commit(current_head_sha)
+        new_commit = repo.create_git_commit(commit_message, new_tree, [parent_commit])
+
+        # Update branch ref to point to new commit
+        target_ref.edit(new_commit.sha)
+        logger.info(f"Successfully committed {len(committed_files)} files atomically to '{branch_name}' ({new_commit.sha[:7]}).")
 
         return {
             "status": "SUCCESS",
             "repo_name": repo_name,
             "branch_name": branch_name,
-            "commit_sha": latest_sha,
+            "commit_sha": new_commit.sha,
             "committed_files_count": len(committed_files),
             "committed_files": committed_files,
+            "atomic": True,
         }
     except Exception as e:
-        logger.exception(f"Error in create_feature_branch_and_commit: {e}")
+        logger.exception(f"Error in atomic create_feature_branch_and_commit: {e}")
         return {
             "status": "ERROR",
             "error_message": str(e),

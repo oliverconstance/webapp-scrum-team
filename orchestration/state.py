@@ -13,6 +13,9 @@ class ScrumSessionState(TypedDict, total=False):
 
     ticket_id: str
     feature_name: str
+    ticket_type: Optional[str]
+    repo_name: Optional[str]
+    branch_name: Optional[str]
     pr_url: Optional[str]
     pr_number: Optional[int]
     ci_passed: bool
@@ -22,13 +25,19 @@ class ScrumSessionState(TypedDict, total=False):
     status: str
     openapi_spec_path: Optional[str]
     architecture_summary: Optional[str]
+    prd_content: Optional[str]
+    arch_spec_content: Optional[str]
+    iteration_history: List[Dict[str, Any]]
 
 
 class ScrumSessionStateModel(BaseModel):
     """Pydantic model representing state across iterative Scrum sprint loops."""
 
-    ticket_id: str = Field(..., description="Unique execution ticket ID (e.g., TICKET-BACKEND-001).")
+    ticket_id: str = Field(..., description="Unique execution ticket ID (e.g., TICKET-BACKEND-001 or TICKET-FRONTEND-001).")
     feature_name: str = Field(..., description="Human-readable name of the feature being developed.")
+    ticket_type: str = Field(default="BACKEND", description="Ticket category: BACKEND, FRONTEND, or FULLSTACK.")
+    repo_name: Optional[str] = Field(default=None, description="Full GitHub target repository (e.g., 'owner/repo').")
+    branch_name: Optional[str] = Field(default=None, description="Feature branch name.")
     pr_url: Optional[str] = Field(default=None, description="URL of the generated GitHub Pull Request.")
     pr_number: Optional[int] = Field(default=None, description="Pull Request number.")
     ci_passed: bool = Field(default=False, description="Whether automated CI/CD checks have passed.")
@@ -43,12 +52,30 @@ class ScrumSessionStateModel(BaseModel):
     )
     openapi_spec_path: Optional[str] = Field(default=None, description="Path to generated OpenAPI contract.")
     architecture_summary: Optional[str] = Field(default=None, description="Summary of architectural decision.")
+    prd_content: Optional[str] = Field(default=None, description="Full text or summary of generated PRD.")
+    arch_spec_content: Optional[str] = Field(default=None, description="Full text or summary of 6-domain architecture spec.")
+    iteration_history: List[Dict[str, Any]] = Field(
+        default_factory=list, description="Historical audit log of all sprint iterations to prevent repeating defects."
+    )
+
+    def record_iteration(self, persona: str, action: str, result: str, feedback: str = "") -> None:
+        """Record an iteration entry in the retrospective state history."""
+        self.iteration_history.append({
+            "retry_count": self.retry_count,
+            "persona": persona,
+            "action": action,
+            "result": result,
+            "feedback": feedback,
+        })
 
     def to_typed_dict(self) -> ScrumSessionState:
         """Convert Pydantic model instance to an ADK-compatible TypedDict."""
         return {
             "ticket_id": self.ticket_id,
             "feature_name": self.feature_name,
+            "ticket_type": self.ticket_type,
+            "repo_name": self.repo_name,
+            "branch_name": self.branch_name,
             "pr_url": self.pr_url,
             "pr_number": self.pr_number,
             "ci_passed": self.ci_passed,
@@ -58,6 +85,9 @@ class ScrumSessionStateModel(BaseModel):
             "status": self.status,
             "openapi_spec_path": self.openapi_spec_path,
             "architecture_summary": self.architecture_summary,
+            "prd_content": self.prd_content,
+            "arch_spec_content": self.arch_spec_content,
+            "iteration_history": self.iteration_history,
         }
 
     @classmethod

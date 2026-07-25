@@ -11,9 +11,15 @@ from tools.git_tools import _get_github_client, _get_repository
 
 logger = logging.getLogger(__name__)
 
+# Check run conclusions that indicate explicit failure
+FAILURE_CONCLUSIONS = {"failure", "timed_out", "cancelled", "action_required"}
+
 
 def check_ci_status(repo_name: str, pr_number: int, token: Optional[str] = None) -> Dict[str, Any]:
     """Check the CI/CD build and check run status of a specific Pull Request.
+
+    Differentiates explicit failures (failure, timed_out, cancelled) from benign states
+    (success, skipped, neutral).
 
     Args:
         repo_name: Full GitHub repository name (e.g., 'owner/repository').
@@ -43,12 +49,15 @@ def check_ci_status(repo_name: str, pr_number: int, token: Optional[str] = None)
 
         for check in check_runs:
             total_checks += 1
+            conclusion = (check.conclusion or "").lower()
+
             if check.status != "completed":
                 pending_checks += 1
-            elif check.conclusion == "success":
-                passed_checks += 1
-            else:
+            elif conclusion in FAILURE_CONCLUSIONS:
                 failed_checks += 1
+            else:
+                # Includes 'success', 'skipped', 'neutral'
+                passed_checks += 1
 
             check_details.append({
                 "name": check.name,
@@ -59,14 +68,14 @@ def check_ci_status(repo_name: str, pr_number: int, token: Optional[str] = None)
 
         # Determine overall boolean CI passed state
         if total_checks > 0:
-            ci_passed = (failed_checks == 0) and (pending_checks == 0) and (passed_checks == total_checks)
+            ci_passed = (failed_checks == 0) and (pending_checks == 0)
             state_summary = "SUCCESS" if ci_passed else ("PENDING" if pending_checks > 0 else "FAILURE")
         else:
             # Fallback to combined commit status if no check runs found
             ci_passed = (combined_status == "success")
             state_summary = combined_status.upper()
 
-        logger.info(f"CI status for PR #{pr_number} ({head_sha[:7]}): {state_summary} ({passed_checks}/{total_checks} passed)")
+        logger.info(f"CI status for PR #{pr_number} ({head_sha[:7]}): {state_summary} ({passed_checks}/{total_checks} passed/skipped)")
 
         return {
             "status": "SUCCESS",

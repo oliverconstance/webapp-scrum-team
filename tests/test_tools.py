@@ -1,6 +1,6 @@
 """Unit and integration tests for Python ADK tools in tools/.
 
-Verifies git branch/commit creation, pull request generation, Secret Manager credential resolution,
+Verifies git branch/atomic commit creation, pull request generation, Secret Manager credential resolution,
 and CI status checking using mock objects and pytest fixtures.
 """
 import os
@@ -44,37 +44,45 @@ def test_get_gcp_secret_api_call(mock_client_cls: MagicMock, monkeypatch: pytest
 
 @pytest.mark.unit
 @patch("tools.git_tools._get_github_client")
-def test_create_feature_branch_and_commit(mock_get_client: MagicMock) -> None:
-    """Test creating a feature branch and committing files via PyGithub mock."""
+def test_create_feature_branch_and_commit_atomic(mock_get_client: MagicMock) -> None:
+    """Test creating a feature branch and committing files ATOMICALLY via PyGithub Git Data Tree mock."""
     mock_g = MagicMock()
     mock_repo = MagicMock()
     mock_get_client.return_value = mock_g
     mock_g.get_repo.return_value = mock_repo
 
-    # Mock base ref
+    # Mock base ref and SHA
     mock_ref = MagicMock()
     mock_ref.object.sha = "base_sha_12345"
     mock_repo.get_git_ref.return_value = mock_ref
+    mock_repo.create_git_ref.return_value = mock_ref
 
-    # Mock get_contents (simulate file does not exist -> create_file called)
-    from github import GithubException
-    mock_repo.get_contents.side_effect = GithubException(404, {"message": "Not Found"}, {})
+    # Mock Git Blob, Tree, and Commit objects
+    mock_blob = MagicMock(sha="blob_sha_1")
+    mock_repo.create_git_blob.return_value = mock_blob
 
-    mock_commit_res = {"commit": MagicMock(sha="new_sha_67890")}
-    mock_repo.create_file.return_value = mock_commit_res
+    mock_tree = MagicMock(sha="tree_sha_1")
+    mock_repo.get_git_tree.return_value = mock_tree
+    mock_repo.create_git_tree.return_value = mock_tree
+
+    mock_commit = MagicMock(sha="atomic_commit_sha_999")
+    mock_repo.get_git_commit.return_value = mock_commit
+    mock_repo.create_git_commit.return_value = mock_commit
 
     res = create_feature_branch_and_commit(
         repo_name="owner/repo",
         branch_name="feature/test-branch",
-        files={"src/main.py": "print('hello')"},
-        commit_message="Add main.py",
+        files={"src/main.py": "print('hello')", "src/config.py": "PORT=8080"},
+        commit_message="Atomic commit main and config",
         token="test_token",
     )
 
     assert res["status"] == "SUCCESS"
-    assert res["commit_sha"] == "new_sha_67890"
-    assert res["committed_files_count"] == 1
-    mock_repo.create_git_ref.assert_called_once_with(ref="refs/heads/feature/test-branch", sha="base_sha_12345")
+    assert res["commit_sha"] == "atomic_commit_sha_999"
+    assert res["committed_files_count"] == 2
+    assert res["atomic"] is True
+    mock_repo.create_git_tree.assert_called_once()
+    mock_repo.create_git_commit.assert_called_once()
 
 
 @pytest.mark.unit
@@ -109,8 +117,8 @@ def test_create_pull_request(mock_get_client: MagicMock) -> None:
 
 @pytest.mark.unit
 @patch("tools.ci_tools._get_github_client")
-def test_check_ci_status_passed(mock_get_client: MagicMock) -> None:
-    """Test checking CI status when all GitHub Actions check runs pass."""
+def test_check_ci_status_with_skipped_checks(mock_get_client: MagicMock) -> None:
+    """Test checking CI status when check runs include skipped/neutral steps without false negatives."""
     mock_g = MagicMock()
     mock_repo = MagicMock()
     mock_pr = MagicMock()
@@ -125,12 +133,12 @@ def test_check_ci_status_passed(mock_get_client: MagicMock) -> None:
     mock_commit.get_combined_status().state = "success"
 
     mock_check_1 = MagicMock(name="Unit Tests", status="completed", conclusion="success", html_url="url1")
-    mock_check_2 = MagicMock(name="Linter", status="completed", conclusion="success", html_url="url2")
+    mock_check_2 = MagicMock(name="Optional Integration", status="completed", conclusion="skipped", html_url="url2")
     mock_commit.get_check_runs.return_value = [mock_check_1, mock_check_2]
 
     res = check_ci_status("owner/repo", pr_number=42, token="test_token")
 
     assert res["status"] == "SUCCESS"
     assert res["ci_passed"] is True
-    assert res["state_summary"] == "SUCCESS"
+    assert res["failed_checks"] == 0
     assert res["passed_checks"] == 2
