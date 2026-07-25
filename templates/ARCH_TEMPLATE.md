@@ -16,16 +16,16 @@
 
 ---
 
-## Domain 2: API Gateway & Ingress
-- **Ingress Controller**: GCP Cloud Run serverless Knative ingress routing with regional HTTPS endpoints.
-- **Contract Specification**: OpenAPI 3.1 YAML specification (`api-spec-*.yaml`) enforced at build and test time.
-- **Error Standardization**: Strict adherence to RFC 7807 problem details (`type`, `title`, `status`, `detail`, `instance`).
-- **CORS & Rate Limiting**: Explicit CORS origin whitelist; API rate limiting via Google Cloud Armor or Cloud API Gateway.
+## Domain 2: API Gateway, Edge Ingress & WAF Security
+- **Edge Load Balancing**: Global External Application Load Balancer (GCLB) with Serverless Network Endpoint Groups (NEGs) targeting Cloud Run services in `europe-west2` (London).
+- **DNS & TLS**: Google Cloud DNS managed zones with Google-managed SSL/TLS certificates (`compute_managed_ssl_certificate`) terminating HTTPS at the edge.
+- **WAF Security Policies**: Google Cloud Armor security policies (`google_compute_security_policy`) attached to the GCLB, enforcing OWASP Top 10 rules against SQL injection, XSS, rate limiting, and layer-7 DDoS mitigation.
+- **Contract Specification**: OpenAPI 3.1 YAML specification (`api-spec-*.yaml`) enforced at build and test time, strictly adhering to RFC 7807 problem detail error responses.
 
 ---
 
 ## Domain 3: Compute Layer (Serverless)
-- **Primary Compute Platform**: Google Cloud Run (2nd Gen execution environment).
+- **Primary Compute Platform**: Google Cloud Run (2nd Gen execution environment, deployed in `europe-west2` / London).
 - **Container Sizing**: Default allocation: 1 vCPU, 1024MiB RAM per container instance.
 - **Concurrency & Autoscaling**: 
   - `containerConcurrency: 80` requests per container.
@@ -35,10 +35,11 @@
 ---
 
 ## Domain 4: Storage & Data Persistence Layer
-- **Relational Database**: Google Cloud SQL for PostgreSQL 15+.
-- **Connection Security**: Cloud SQL Auth Proxy sidecar or Private Service Connect (VPC Native) with IAM database authentication.
+- **Relational Database**: Google Cloud SQL for PostgreSQL 15+ deployed in `europe-west2` (London).
+- **Private VPC Networking**: Serverless VPC Access Connector or Direct VPC Egress so Cloud Run connects to Cloud SQL over RFC 1918 private internal IP addresses without public internet routing.
+- **Connection Security**: Cloud SQL Auth Proxy sidecar or Private Service Connect with IAM database authentication.
 - **ORM & Migrations**: SQLAlchemy 2.0 / SQLModel (Python) or Prisma / Drizzle ORM (Node.js TypeScript). Automated schema migrations executed in CI/CD pipeline before traffic cutover.
-- **NoSQL / Caching (Optional)**: Cloud Firestore (Native Mode) for real-time document sync and session state persistence.
+- **NoSQL / Caching (Optional)**: Cloud Firestore (Native Mode) or Memorystore for Redis for real-time document sync and session state caching.
 
 ---
 

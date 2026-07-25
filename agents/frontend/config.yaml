@@ -19,6 +19,8 @@ agent:
     hosting_environment: vertex-ai-agent-engine
   skills:
     - openapi-spec-generator
+    - firebase-basics
+    - google-cloud-global-frontend-configuration
   tools:
     - git_tools.create_feature_branch_and_commit
     - git_tools.create_pull_request

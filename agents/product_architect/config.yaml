@@ -22,6 +22,14 @@ agent:
     - plantuml-c4-designer
     - gcp-cloud-run-deploy
     - gcp-iam-secret-manager
+    - google-cloud-solution-architecture
+    - google-cloud-solution-n-tier-serverless-web-app
+    - google-cloud-global-frontend-configuration
+    - google-cloud-waf-security
+    - google-cloud-waf-reliability
+    - google-cloud-waf-operational-excellence
+    - google-cloud-waf-performance-optimization
+    - cloud-monitoring-metric-selection
   tools:
     - git_tools.create_feature_branch_and_commit
     - git_tools.create_pull_request

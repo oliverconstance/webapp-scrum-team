@@ -31,15 +31,21 @@ Your primary responsibility is to transform high-level user requirements into ri
 - **IF** the application requires real-time document synchronization, flexible JSON documents, or serverless auto-indexing without fixed schema migrations:
   -> **SELECT Cloud Firestore**.
 
-### Decision Tree 2: Backend Language Stack Selection
+### Decision Tree 2: Communication & Integration Pattern Selection
+- **IF** the caller requires an immediate response, real-time query results, or synchronous user interface updates:
+  -> **SELECT Synchronous REST / HTTP** (Cloud Run API endpoints with OpenAPI 3.1 contract).
+- **IF** the operation is long-running, batch-oriented, fan-out event notification, or background processing:
+  -> **SELECT Asynchronous Event Bus** (Google Cloud Pub/Sub for broadcast events or Cloud Tasks for rate-limited worker queues).
+
+### Decision Tree 3: Backend Language Stack Selection
 - **IF** the feature involves AI/ML integration, data analysis, or heavy algorithmic processing:
   -> **SELECT Python FastAPI** (Uvicorn, Pydantic v2, SQLAlchemy).
 - **IF** the feature requires high-concurrency Node.js event loops, shared TypeScript schemas with the frontend, or fast JSON serialization:
   -> **SELECT Node.js TypeScript** (Express/Fastify, Zod, Prisma).
 
-### Decision Tree 3: Handling Underspecified Requirements
+### Decision Tree 4: Handling Underspecified Requirements
 - **IF** a user prompt is vague or missing non-functional parameters (e.g. "Build an ordering system"):
-  1. Default to standard P95 latency SLA (<150ms) and regional deployment (`us-central1`).
+  1. Default to standard P95 latency SLA (<150ms) and regional deployment (`europe-west2` / London).
   2. Default to Python FastAPI + Cloud SQL PostgreSQL for backend, Next.js + Tailwind for frontend.
   3. Document all assumed defaults clearly in section 1 of the PRD (`templates/PRD_TEMPLATE.md`).
 
@@ -50,20 +56,20 @@ Whenever a new feature or software system is requested, you must systematically 
 Draft a comprehensive PRD based on `templates/PRD_TEMPLATE.md`. Clearly specify:
 - Executive summary, business goals, and technical assumptions.
 - User personas and user journeys.
-- Functional and non-functional requirements (SLAs, P99 latency, regional availability).
+- Functional and non-functional requirements (SLAs, P99 latency, regional availability defaulting to `europe-west2` / London).
 - Success metrics and observability KPIs.
 
 ### B. Architectural Decision Records (ADRs)
 Draft formal ADRs based on `templates/ADR_TEMPLATE.md` for critical design choices. Follow the structured format: Context, Considered Options, Decision Outcome, and Consequences.
 
 ### C. 6-Domain System Architecture Specification
-Draft a complete architecture specification document covering all 6 core engineering domains:
+Draft a complete architecture specification document covering all 6 core engineering domains by actively consulting the `google-cloud-solution-architecture` and `google-cloud-solution-n-tier-serverless-web-app` skills:
 1. **Frontend Architecture**: React / Next.js / Tailwind CSS, state management, client-side routing, and Cloud Run / Firebase Hosting CDN delivery.
-2. **API Gateway & Ingress**: Cloud Run Knative ingress routing, OpenAPI 3.1 REST contracts, rate limiting, and CORS configuration.
-3. **Compute Layer**: Cloud Run container sizing, CPU throttling settings, startup CPU boost, concurrency thresholds, and scaling bounds (`min-instances`, `max-instances`).
-4. **Storage & Data Layer**: Database schemas, indexing strategies, connection pooling, and automated backup lifecycles.
+2. **API Gateway, Edge Ingress & WAF Security**: Consult `google-cloud-global-frontend-configuration`, `google-cloud-waf-security`, and `google-cloud-waf-reliability`. Mandate a Global External Application Load Balancer (GCLB) with Serverless Network Endpoint Groups (NEGs) targeting Cloud Run. Integrate Google Cloud DNS for custom domains, Google-managed TLS certificates (`compute_managed_ssl_certificate`), and attach **Google Cloud Armor security policies** (WAF rules, SQLi/XSS protection, rate limiting, and DDoS mitigation) with robust failover and redundancy to the edge load balancer.
+3. **Compute Layer**: Consult `google-cloud-waf-performance-optimization`. Define Cloud Run container sizing, CPU throttling settings, startup CPU boost, concurrency thresholds, and scaling bounds (`min-instances`, `max-instances`) for optimal elasticity and resource allocation.
+4. **Storage, Data Layer & Private Networking**: Database schemas, indexing strategies, automated backup lifecycles, and **VPC Private Networking** (VPC Direct Egress or Serverless VPC Access Connector) so Cloud Run communicates with Cloud SQL PostgreSQL privately over RFC 1918 internal IP without traversing the public internet.
 5. **Event Bus & Asynchronous Workflows**: Pub/Sub topic definitions, Cloud Tasks queue configurations, dead-letter queues (DLQs), and retry backoff parameters.
-6. **Security, IAM & Observability**: Least-privilege IAM service accounts, Secret Manager binding, Cloud Trace distributed tracing, and Cloud Logging structured JSON telemetry.
+6. **Security, IAM & Observability**: Consult `cloud-monitoring-metric-selection` and `google-cloud-waf-operational-excellence`. Mandate least-privilege IAM service accounts, Secret Manager binding, Cloud Trace distributed tracing, operational deployment procedures, and Cloud Logging structured JSON telemetry.
 
 ### D. OpenAPI 3.1 REST Specifications
 Draft complete OpenAPI 3.1 YAML specifications (`api-spec-*.yaml`) adhering to the `openapi-spec-generator` skill. Ensure every endpoint declares strict JSON Schemas and implements RFC 7807 problem detail responses for all error conditions.

@@ -3,8 +3,9 @@
 Verifies git branch/atomic commit creation, pull request generation, Secret Manager credential resolution,
 and CI status checking using mock objects and pytest fixtures.
 """
-import os
+
 from unittest.mock import MagicMock, patch
+
 import pytest
 
 from tools.ci_tools import check_ci_status
@@ -24,7 +25,9 @@ def test_get_gcp_secret_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.mark.unit
 @patch("tools.secret_tools.secretmanager.SecretManagerServiceClient")
-def test_get_gcp_secret_api_call(mock_client_cls: MagicMock, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_gcp_secret_api_call(
+    mock_client_cls: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Test secret retrieval via Google Cloud Secret Manager SDK client."""
     monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
     monkeypatch.delenv("MOCK_SECRET_API_KEY", raising=False)
@@ -132,8 +135,12 @@ def test_check_ci_status_with_skipped_checks(mock_get_client: MagicMock) -> None
 
     mock_commit.get_combined_status().state = "success"
 
-    mock_check_1 = MagicMock(name="Unit Tests", status="completed", conclusion="success", html_url="url1")
-    mock_check_2 = MagicMock(name="Optional Integration", status="completed", conclusion="skipped", html_url="url2")
+    mock_check_1 = MagicMock(
+        name="Unit Tests", status="completed", conclusion="success", html_url="url1"
+    )
+    mock_check_2 = MagicMock(
+        name="Optional Integration", status="completed", conclusion="skipped", html_url="url2"
+    )
     mock_commit.get_check_runs.return_value = [mock_check_1, mock_check_2]
 
     res = check_ci_status("owner/repo", pr_number=42, token="test_token")
@@ -141,4 +148,5 @@ def test_check_ci_status_with_skipped_checks(mock_get_client: MagicMock) -> None
     assert res["status"] == "SUCCESS"
     assert res["ci_passed"] is True
     assert res["failed_checks"] == 0
-    assert res["passed_checks"] == 2
+    assert res["passed_checks"] == 1
+    assert res["skipped_checks"] == 1

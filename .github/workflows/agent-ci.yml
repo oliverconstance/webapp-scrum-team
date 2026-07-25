@@ -39,6 +39,18 @@ jobs:
       - name: Validate All Skill Frontmatter & Specs
         run: |
           poetry run python .agent/skills/openapi-spec-generator/scripts/validate_yaml.py --file .agent/skills/openapi-spec-generator/templates/standard_error_response.yaml
+          poetry run python -c "
+          import glob, yaml
+          for path in glob.glob('.agent/skills/*/SKILL.md'):
+              with open(path, 'r', encoding='utf-8') as f:
+                  content = f.read()
+              if content.startswith('---'):
+                  parts = content.split('---', 2)
+                  if len(parts) >= 3:
+                      meta = yaml.safe_load(parts[1])
+                      assert 'name' in meta and 'description' in meta, f'Missing name/description in {path}'
+                      print(f'Validated frontmatter for {path}')
+          "
 
       - name: Execute Pytest Test Suite
         env:

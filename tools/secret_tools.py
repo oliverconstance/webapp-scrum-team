@@ -3,9 +3,9 @@
 Provides secure, typed resolution of sensitive runtime secrets (e.g., GitHub App private keys,
 API tokens, database credentials) using least-privilege IAM Workload Identity Federation.
 """
+
 import logging
 import os
-from typing import Optional
 
 from google.api_core.exceptions import GoogleAPICallError, PermissionDenied
 from google.cloud import secretmanager
@@ -13,7 +13,9 @@ from google.cloud import secretmanager
 logger = logging.getLogger(__name__)
 
 
-def get_gcp_secret(secret_id: str, project_id: Optional[str] = None, version_id: str = "latest") -> str:
+def get_gcp_secret(
+    secret_id: str, project_id: str | None = None, version_id: str = "latest"
+) -> str:
     """Retrieve a secret payload from Google Cloud Secret Manager.
 
     Args:
@@ -43,13 +45,17 @@ def get_gcp_secret(secret_id: str, project_id: Optional[str] = None, version_id:
     try:
         client = secretmanager.SecretManagerServiceClient()
         secret_name = f"projects/{target_project}/secrets/{secret_id}/versions/{version_id}"
-        
-        logger.info(f"Accessing Secret Manager payload for '{secret_id}' (version: {version_id})...")
+
+        logger.info(
+            f"Accessing Secret Manager payload for '{secret_id}' (version: {version_id})..."
+        )
         response = client.access_secret_version(request={"name": secret_name})
         payload_bytes: bytes = response.payload.data
         return payload_bytes.decode("utf-8")
     except PermissionDenied as e:
-        logger.error(f"Permission denied accessing secret '{secret_id}'. Verify IAM least-privilege role binding.")
+        logger.error(
+            f"Permission denied accessing secret '{secret_id}'. Verify IAM least-privilege role binding."
+        )
         raise RuntimeError(
             f"IAM PermissionDenied accessing secret '{secret_id}' in project '{target_project}'. "
             "Ensure the runtime service account has 'roles/secretmanager.secretAccessor'."

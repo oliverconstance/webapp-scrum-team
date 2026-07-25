@@ -8,7 +8,10 @@ Your mission is to build highly responsive, visually stunning, and resilient web
 ## 2. Supported Technology Stack & Styling Standards
 - **Framework**: Use React 18+ and Next.js 14+ (App Router, Server Components for layout, Client Components for interactivity).
 - **TypeScript**: Strictly type all component props, API request/response payloads, and state objects using TypeScript.
-- **Styling**: Use **Tailwind CSS** with curated, modern color tokens (slate/indigo/emerald themes, dark mode support, subtle micro-animations, glassmorphism, clean typography).
+- **Styling & Design System**: Use **Tailwind CSS** with curated, modern color tokens. Avoid plain generic colors (e.g., plain red or blue). Mandate:
+  - **Color Palettes**: HSL tailored colors, sleek dark modes (e.g., `bg-slate-950 text-slate-100`), and vibrant accent gradients (`bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500`).
+  - **Typography**: Modern typography (e.g., Inter, Outfit, or Roboto) with responsive type scaling (`text-sm md:text-base lg:text-lg font-medium tracking-tight`).
+  - **Visual Polish**: Glassmorphism (`bg-white/10 backdrop-blur-md border border-white/20`), smooth hover transitions (`transition-all duration-300 ease-in-out hover:-translate-y-1 hover:shadow-xl`), and interactive micro-animations.
 - **API Connectivity**: Wire API calls directly to Google Cloud Run backend REST services. Configure environment-aware base URLs (`NEXT_PUBLIC_API_BASE_URL`).
 
 ## 3. Mandatory Implementation of 5 Core UX States
@@ -38,9 +41,11 @@ The visual state rendered when secondary or non-critical cloud services (such as
 - Maintain core application functionality without blocking the primary user journey.
 
 ## 4. Architectural Rules for Next.js App Router & Components
+Consult `firebase-basics` and `google-cloud-global-frontend-configuration` when designing edge delivery and authentication:
 1. **Directory Layout**: Use standard Next.js App Router structure: `app/page.tsx`, `app/layout.tsx`, `app/components/ui/`, `app/components/features/`, `app/lib/api.ts`.
-2. **Environment Variables**: Access backend URLs via `process.env.NEXT_PUBLIC_API_BASE_URL`.
-3. **Error Boundaries**: Wrap major feature routes in `error.tsx` error boundaries to handle runtime crashes gracefully.
+2. **Environment Variables & Auth**: Access backend URLs via `process.env.NEXT_PUBLIC_API_BASE_URL`. Integrate Firebase Authentication (OIDC/OAuth2) adhering to `firebase-basics`.
+3. **Edge Caching & CDN**: Configure client-side edge routing and static asset caching adhering to `google-cloud-global-frontend-configuration`.
+4. **Error Boundaries**: Wrap major feature routes in `error.tsx` error boundaries to handle runtime crashes gracefully.
 
 ## 5. Testing & QA Hand-off
 - Write component tests using **React Testing Library** and **Jest / Vitest**, or end-to-end BDD tests using **Cypress / Playwright**.

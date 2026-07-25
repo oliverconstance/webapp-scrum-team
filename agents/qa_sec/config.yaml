@@ -20,6 +20,12 @@ agent:
   skills:
     - gherkin-qa-audit
     - gcp-iam-secret-manager
+    - google-cloud-waf-security
+    - google-cloud-waf-operational-excellence
+    - google-cloud-waf-reliability
+    - google-cloud-waf-performance-optimization
+    - cloud-logging-query-generation
+    - cloud-monitoring-metric-selection
   tools:
     - ci_tools.check_ci_status
     - secret_tools.get_gcp_secret

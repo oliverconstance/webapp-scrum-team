@@ -3,7 +3,9 @@
 Verifies state serialization, QA JSON evaluation, retry counter incrementation, circuit breaker
 tripping, iteration recording, dynamic config loading, and full sequential/loop agent pipeline execution.
 """
+
 import pytest
+
 from orchestration.circuit_breaker import (
     CircuitBreakerTrippedException,
     evaluate_qa_feedback_and_break,
@@ -11,7 +13,6 @@ from orchestration.circuit_breaker import (
 from orchestration.scrum_master import (
     LlmAgent,
     LoopAgent,
-    SequentialAgent,
     create_scrum_team_orchestrator,
 )
 from orchestration.state import ScrumSessionStateModel
@@ -106,13 +107,23 @@ def test_loop_agent_frontend_execution(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test that LoopAgent correctly executes frontend persona when ticket_type is FRONTEND."""
     monkeypatch.setenv("MOCK_QA_IMMEDIATE_PASS", "true")
 
-    backend_agent = LlmAgent(name="cloud_backend", role="Backend Dev", model="gemini-3.1-pro", instructions="Dev")
-    frontend_agent = LlmAgent(name="frontend", role="Frontend Dev", model="gemini-3.1-flash", instructions="Frontend")
-    qa_agent = LlmAgent(name="qa_sec", role="QA Auditor", model="gemini-3.1-flash", instructions="QA")
+    backend_agent = LlmAgent(
+        name="cloud_backend", role="Backend Dev", model="gemini-3.1-pro", instructions="Dev"
+    )
+    frontend_agent = LlmAgent(
+        name="frontend", role="Frontend Dev", model="gemini-3.1-flash", instructions="Frontend"
+    )
+    qa_agent = LlmAgent(
+        name="qa_sec", role="QA Auditor", model="gemini-3.1-flash", instructions="QA"
+    )
 
-    loop = LoopAgent(name="test_loop", sub_agents=[backend_agent, frontend_agent, qa_agent], max_iterations=3)
+    loop = LoopAgent(
+        name="test_loop", sub_agents=[backend_agent, frontend_agent, qa_agent], max_iterations=3
+    )
 
-    state = ScrumSessionStateModel(ticket_id="TICKET-FRONTEND-001", feature_name="React Dashboard UI", ticket_type="FRONTEND")
+    state = ScrumSessionStateModel(
+        ticket_id="TICKET-FRONTEND-001", feature_name="React Dashboard UI", ticket_type="FRONTEND"
+    )
     final_state = loop.run(state)
 
     assert final_state.status == "PASS"
@@ -125,7 +136,9 @@ def test_full_sequential_orchestration_pipeline(monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setenv("MOCK_QA_IMMEDIATE_PASS", "true")
 
     orchestrator = create_scrum_team_orchestrator(max_loop_iterations=3)
-    state = ScrumSessionStateModel(ticket_id="TEST-SEQ-1", feature_name="Sequential Test", ticket_type="BACKEND")
+    state = ScrumSessionStateModel(
+        ticket_id="TEST-SEQ-1", feature_name="Sequential Test", ticket_type="BACKEND"
+    )
 
     final_state = orchestrator.run(state)
 
@@ -133,3 +146,45 @@ def test_full_sequential_orchestration_pipeline(monkeypatch: pytest.MonkeyPatch)
     assert final_state.pr_url is not None
     assert final_state.status == "PASS"
     assert final_state.ci_passed is True
+
+
+@pytest.mark.unit
+def test_specialized_backend_and_frontend_qa_loops(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test specialized backend_qa_loop and frontend_qa_loop exposed on the orchestrator."""
+    monkeypatch.setenv("MOCK_QA_IMMEDIATE_PASS", "true")
+    orchestrator = create_scrum_team_orchestrator(max_loop_iterations=2)
+
+    # 1. Test Backend QA Loop
+    backend_state = ScrumSessionStateModel(
+        ticket_id="TEST-BE-1", feature_name="BE API", ticket_type="BACKEND"
+    )
+    be_result = orchestrator.backend_qa_loop.run(backend_state)  # type: ignore
+    assert be_result.status == "PASS"
+    assert be_result.ci_passed is True
+    assert any(item["persona"] == "cloud_backend" for item in be_result.iteration_history)
+
+    # 2. Test Frontend QA Loop
+    frontend_state = ScrumSessionStateModel(
+        ticket_id="TEST-FE-1", feature_name="FE UI", ticket_type="FRONTEND"
+    )
+    fe_result = orchestrator.frontend_qa_loop.run(frontend_state)  # type: ignore
+    assert fe_result.status == "PASS"
+    assert fe_result.ci_passed is True
+    assert any(item["persona"] == "frontend" for item in fe_result.iteration_history)
+
+
+@pytest.mark.unit
+def test_dual_track_frontend_orchestration(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test that full sequential orchestration correctly routes a FRONTEND ticket to frontend dev_qa_loop."""
+    monkeypatch.setenv("MOCK_QA_IMMEDIATE_PASS", "true")
+    orchestrator = create_scrum_team_orchestrator(max_loop_iterations=3)
+    state = ScrumSessionStateModel(
+        ticket_id="TEST-FE-SEQ", feature_name="React Dashboard", ticket_type="FRONTEND"
+    )
+
+    final_state = orchestrator.run(state)
+
+    assert final_state.openapi_spec_path == "api-spec-v1.yaml"
+    assert final_state.pr_url is not None
+    assert final_state.status == "PASS"
+    assert any(item["persona"] == "frontend" for item in final_state.iteration_history)

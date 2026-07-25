@@ -21,6 +21,12 @@ agent:
     - openapi-spec-generator
     - gcp-cloud-run-deploy
     - gcp-iam-secret-manager
+    - cloud-run-basics
+    - cloud-sql-basics
+    - google-cloud-storage-basics
+    - gcloud
+    - google-cloud-waf-security
+    - cloud-logging-query-generation
   tools:
     - git_tools.create_feature_branch_and_commit
     - git_tools.create_pull_request

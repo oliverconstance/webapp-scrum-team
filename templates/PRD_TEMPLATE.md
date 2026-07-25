@@ -4,7 +4,7 @@
 - **Author**: Lead Technical PM (`product_architect`)
 - **Status**: Draft / Under Review / Approved / In Progress
 - **Target Target Date**: YYYY-MM-DD
-- **Target GCP Region**: us-central1 (default)
+- **Target GCP Region**: europe-west2 (London, default)
 
 ---
 

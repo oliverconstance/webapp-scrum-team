@@ -21,7 +21,7 @@ To minimize vulnerability surface area and image size, compile the backend or fr
 ```bash
 # Set environment variables
 export PROJECT_ID=$(gcloud config get-value project)
-export REGION="us-central1"
+export REGION="europe-west2"
 export REPO_NAME="scrum-team-repo"
 export IMAGE_NAME="backend-service"
 export TAG="latest"
@@ -87,10 +87,10 @@ Verify service health, readiness status, and assigned HTTPS URL:
 
 ```bash
 # Describe service status
-gcloud run services describe backend-service --region=us-central1 --format="value(status.url, status.conditions[0].status)"
+gcloud run services describe backend-service --region=europe-west2 --format="value(status.url, status.conditions[0].status)"
 
 # Perform HTTP liveness check
-curl -f -H "Authorization: Bearer $(gcloud auth print-identity-token)" $(gcloud run services describe backend-service --region=us-central1 --format="value(status.url)")/health || echo "Health check failed"
+curl -f -H "Authorization: Bearer $(gcloud auth print-identity-token)" $(gcloud run services describe backend-service --region=europe-west2 --format="value(status.url)")/health || echo "Health check failed"
 ```
 
 ### Common Errors and Solutions

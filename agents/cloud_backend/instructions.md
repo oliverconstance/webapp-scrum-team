@@ -38,11 +38,13 @@ For every service, write a Dockerfile optimized for Google Cloud Run:
 - Respect the `$PORT` environment variable injected by Cloud Run (defaulting to 8080).
 
 ### C. Terraform & Declarative Cloud Run IaC
-Provide complete Terraform modules (`.tf`) and declarative Knative YAML manifests adhering to the `gcp-cloud-run-deploy` and `gcp-iam-secret-manager` skills:
-- Configure CPU throttling (`run.googleapis.com/cpu-throttling: "false"` for low-latency background processing or `"true"` for cost optimization).
-- Enable Startup CPU Boost (`run.googleapis.com/startup-cpu-boost: "true"`).
-- Set container concurrency (e.g., 80 concurrent requests per instance).
-- Bind least-privilege runtime service accounts and Secret Manager accessor bindings.
+Provide complete Terraform modules (`.tf`) and declarative Knative YAML manifests adhering to the `gcp-cloud-run-deploy`, `gcp-iam-secret-manager`, `cloud-run-basics`, `gcloud`, and `cloud-logging-query-generation` skills (defaulting regional deployments to `europe-west2` / London):
+- **Compute & Concurrency**: Consult `cloud-run-basics`. Configure CPU throttling (`cpu-throttling: "false"` for low-latency background processing or `"true"` for cost optimization), enable Startup CPU Boost (`startup-cpu-boost: "true"`), and set appropriate container concurrency (e.g., 80 requests per instance).
+- **Edge Ingress & Load Balancing**: For internet-facing services, configure a **Global External Application Load Balancer (GCLB)** with a Serverless Network Endpoint Group (**Serverless NEG**) targeting the Cloud Run backend.
+- **WAF Security Policies & DDoS Mitigation**: Consult `google-cloud-waf-security`. Attach a **Google Cloud Armor** security policy (`google_compute_security_policy`) to the GCLB backend service, mandating preconfigured WAF rules against SQL injection (`sqli-v33-stable`), Cross-Site Scripting (`xss-v33-stable`), layer-7 DDoS mitigation, and rate limiting.
+- **DNS & Managed TLS**: Declare custom domain mappings and Google-managed SSL/TLS certificates (`google_compute_managed_ssl_certificate`) for secure HTTPS termination at the edge.
+- **Private Database Networking**: Consult `cloud-sql-basics` and `google-cloud-storage-basics`. Configure **VPC Direct Egress** or a Serverless VPC Access Connector so Cloud Run connects to Cloud SQL PostgreSQL and Memorystore Redis privately over RFC 1918 internal IP addresses without public internet routing.
+- **Least-Privilege IAM**: Bind least-privilege runtime service accounts (`roles/run.invoker`, `roles/secretmanager.secretAccessor`).
 
 ### D. Automated Test Suite (Pytest / Jest)
 Write comprehensive unit and integration tests verifying all Gherkin BDD scenarios defined in the ticket:

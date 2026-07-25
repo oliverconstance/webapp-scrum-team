@@ -3,9 +3,10 @@
 Provides robust, typed functions to create feature branches, commit multiple files atomically
 using Git Data Tree APIs, and open pull requests against GitHub repositories.
 """
+
 import logging
 import os
-from typing import Any, Dict, Optional
+from typing import Any
 
 from github import Github, GithubException
 from github.InputGitTreeElement import InputGitTreeElement
@@ -14,7 +15,7 @@ from github.Repository import Repository
 logger = logging.getLogger(__name__)
 
 
-def _get_github_client(token: Optional[str] = None) -> Github:
+def _get_github_client(token: str | None = None) -> Github:
     """Initialize and return an authenticated PyGithub client.
 
     Args:
@@ -58,11 +59,11 @@ def _get_repository(g: Github, repo_name: str) -> Repository:
 def create_feature_branch_and_commit(
     repo_name: str,
     branch_name: str,
-    files: Dict[str, str],
+    files: dict[str, str],
     commit_message: str,
     base_branch: str = "main",
-    token: Optional[str] = None,
-) -> Dict[str, Any]:
+    token: str | None = None,
+) -> dict[str, Any]:
     """Create a feature branch and commit multiple files ATOMICALLY using Git Data Tree API.
 
     Args:
@@ -97,7 +98,9 @@ def create_feature_branch_and_commit(
         try:
             target_ref = repo.create_git_ref(ref=f"refs/{ref_path}", sha=base_sha)
             current_head_sha = base_sha
-            logger.info(f"Created new branch '{branch_name}' from '{base_branch}' ({base_sha[:7]}).")
+            logger.info(
+                f"Created new branch '{branch_name}' from '{base_branch}' ({base_sha[:7]})."
+            )
         except GithubException as e:
             if e.status == 422:
                 logger.info(f"Branch '{branch_name}' already exists. Fetching ref.")
@@ -106,10 +109,17 @@ def create_feature_branch_and_commit(
             else:
                 raise RuntimeError(f"Failed to create branch '{branch_name}': {e.data}") from e
 
-        # Build Atomic Git Tree Elements
+        # Build Atomic Git Tree Elements with path normalization and collision check
         tree_elements = []
         committed_files = []
-        for file_path, content in files.items():
+        for raw_path, content in files.items():
+            file_path = raw_path.strip("/\\")
+            if not file_path or file_path.endswith("/") or file_path.endswith("\\"):
+                logger.warning(f"Skipping invalid directory or empty file path: '{raw_path}'")
+                continue
+            if not isinstance(content, str):
+                content = str(content)
+
             # Create blob for file content
             blob = repo.create_git_blob(content, "utf-8")
             element = InputGitTreeElement(
@@ -131,7 +141,9 @@ def create_feature_branch_and_commit(
 
         # Update branch ref to point to new commit
         target_ref.edit(new_commit.sha)
-        logger.info(f"Successfully committed {len(committed_files)} files atomically to '{branch_name}' ({new_commit.sha[:7]}).")
+        logger.info(
+            f"Successfully committed {len(committed_files)} files atomically to '{branch_name}' ({new_commit.sha[:7]})."
+        )
 
         return {
             "status": "SUCCESS",
@@ -158,8 +170,8 @@ def create_pull_request(
     title: str,
     body: str,
     base_branch: str = "main",
-    token: Optional[str] = None,
-) -> Dict[str, Any]:
+    token: str | None = None,
+) -> dict[str, Any]:
     """Create a GitHub Pull Request from the feature branch to the base branch.
 
     Args:
@@ -178,7 +190,9 @@ def create_pull_request(
         repo = _get_repository(g, repo_name)
 
         # Check if PR already exists for this head/base pair
-        existing_prs = repo.get_pulls(state="open", head=f"{repo.owner.login}:{branch_name}", base=base_branch)
+        existing_prs = repo.get_pulls(
+            state="open", head=f"{repo.owner.login}:{branch_name}", base=base_branch
+        )
         for pr in existing_prs:
             logger.info(f"Pull request already exists: #{pr.number} ({pr.html_url})")
             return {

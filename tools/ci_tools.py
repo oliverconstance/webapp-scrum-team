@@ -3,10 +3,12 @@
 Provides real-time inspection of GitHub Actions build statuses, test suites,
 and linter checks for feature pull requests.
 """
+
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 from github import GithubException
+
 from tools.git_tools import _get_github_client, _get_repository
 
 logger = logging.getLogger(__name__)
@@ -15,7 +17,7 @@ logger = logging.getLogger(__name__)
 FAILURE_CONCLUSIONS = {"failure", "timed_out", "cancelled", "action_required"}
 
 
-def check_ci_status(repo_name: str, pr_number: int, token: Optional[str] = None) -> Dict[str, Any]:
+def check_ci_status(repo_name: str, pr_number: int, token: str | None = None) -> dict[str, Any]:
     """Check the CI/CD build and check run status of a specific Pull Request.
 
     Differentiates explicit failures (failure, timed_out, cancelled) from benign states
@@ -43,6 +45,7 @@ def check_ci_status(repo_name: str, pr_number: int, token: Optional[str] = None)
 
         total_checks = 0
         passed_checks = 0
+        skipped_checks = 0
         failed_checks = 0
         pending_checks = 0
         check_details = []
@@ -55,27 +58,35 @@ def check_ci_status(repo_name: str, pr_number: int, token: Optional[str] = None)
                 pending_checks += 1
             elif conclusion in FAILURE_CONCLUSIONS:
                 failed_checks += 1
+            elif conclusion in ("skipped", "neutral", "stale"):
+                skipped_checks += 1
             else:
-                # Includes 'success', 'skipped', 'neutral'
+                # Includes 'success'
                 passed_checks += 1
 
-            check_details.append({
-                "name": check.name,
-                "status": check.status,
-                "conclusion": check.conclusion,
-                "html_url": check.html_url,
-            })
+            check_details.append(
+                {
+                    "name": check.name,
+                    "status": check.status,
+                    "conclusion": check.conclusion,
+                    "html_url": check.html_url,
+                }
+            )
 
         # Determine overall boolean CI passed state
         if total_checks > 0:
             ci_passed = (failed_checks == 0) and (pending_checks == 0)
-            state_summary = "SUCCESS" if ci_passed else ("PENDING" if pending_checks > 0 else "FAILURE")
+            state_summary = (
+                "SUCCESS" if ci_passed else ("PENDING" if pending_checks > 0 else "FAILURE")
+            )
         else:
             # Fallback to combined commit status if no check runs found
-            ci_passed = (combined_status == "success")
+            ci_passed = combined_status == "success"
             state_summary = combined_status.upper()
 
-        logger.info(f"CI status for PR #{pr_number} ({head_sha[:7]}): {state_summary} ({passed_checks}/{total_checks} passed/skipped)")
+        logger.info(
+            f"CI status for PR #{pr_number} ({head_sha[:7]}): {state_summary} ({passed_checks} passed, {skipped_checks} skipped, {failed_checks} failed)"
+        )
 
         return {
             "status": "SUCCESS",
@@ -86,6 +97,7 @@ def check_ci_status(repo_name: str, pr_number: int, token: Optional[str] = None)
             "state_summary": state_summary,
             "total_checks": total_checks,
             "passed_checks": passed_checks,
+            "skipped_checks": skipped_checks,
             "failed_checks": failed_checks,
             "pending_checks": pending_checks,
             "check_details": check_details,
