@@ -1,0 +1,28 @@
+# Google ADK Agent Runtime Configuration for Product Architect
+agent:
+  name: product_architect
+  role: Lead Technical PM & GCP Solutions Architect
+  model:
+    engine: gemini-3.1-pro
+    provider: google-vertex-ai
+    temperature: 0.2
+    top_p: 0.95
+    max_output_tokens: 8192
+    safety_settings:
+      HARM_CATEGORY_HATE_SPEECH: BLOCK_MEDIUM_AND_ABOVE
+      HARM_CATEGORY_DANGEROUS_CONTENT: BLOCK_MEDIUM_AND_ABOVE
+      HARM_CATEGORY_SEXUALLY_EXPLICIT: BLOCK_MEDIUM_AND_ABOVE
+      HARM_CATEGORY_HARASSMENT: BLOCK_MEDIUM_AND_ABOVE
+  execution:
+    max_iterations: 10
+    timeout_seconds: 300
+    hosting_environment: vertex-ai-agent-engine
+  skills:
+    - openapi-spec-generator
+    - plantuml-c4-designer
+    - gcp-cloud-run-deploy
+    - gcp-iam-secret-manager
+  tools:
+    - git_tools.create_feature_branch_and_commit
+    - git_tools.create_pull_request
+    - secret_tools.get_gcp_secret

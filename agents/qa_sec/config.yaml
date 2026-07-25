@@ -1,0 +1,25 @@
+# Google ADK Agent Runtime Configuration for QA & Cloud Security Auditor
+agent:
+  name: qa_sec
+  role: QA & Cloud Security Auditor
+  model:
+    engine: gemini-3.1-flash
+    provider: google-vertex-ai
+    temperature: 0.1
+    top_p: 0.90
+    max_output_tokens: 8192
+    safety_settings:
+      HARM_CATEGORY_HATE_SPEECH: BLOCK_MEDIUM_AND_ABOVE
+      HARM_CATEGORY_DANGEROUS_CONTENT: BLOCK_MEDIUM_AND_ABOVE
+      HARM_CATEGORY_SEXUALLY_EXPLICIT: BLOCK_MEDIUM_AND_ABOVE
+      HARM_CATEGORY_HARASSMENT: BLOCK_MEDIUM_AND_ABOVE
+  execution:
+    max_iterations: 10
+    timeout_seconds: 300
+    hosting_environment: vertex-ai-agent-engine
+  skills:
+    - gherkin-qa-audit
+    - gcp-iam-secret-manager
+  tools:
+    - ci_tools.check_ci_status
+    - secret_tools.get_gcp_secret

@@ -1,0 +1,136 @@
+"""Unit and integration tests for Python ADK tools in tools/.
+
+Verifies git branch/commit creation, pull request generation, Secret Manager credential resolution,
+and CI status checking using mock objects and pytest fixtures.
+"""
+import os
+from unittest.mock import MagicMock, patch
+import pytest
+
+from tools.ci_tools import check_ci_status
+from tools.git_tools import create_feature_branch_and_commit, create_pull_request
+from tools.secret_tools import get_gcp_secret
+
+
+@pytest.mark.unit
+def test_get_gcp_secret_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test secret retrieval using environment variable mock override."""
+    monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
+    monkeypatch.setenv("MOCK_SECRET_GITHUB_APP_KEY", "mocked-private-key-data")
+
+    result = get_gcp_secret("github-app-key", project_id="test-project")
+    assert result == "mocked-private-key-data"
+
+
+@pytest.mark.unit
+@patch("tools.secret_tools.secretmanager.SecretManagerServiceClient")
+def test_get_gcp_secret_api_call(mock_client_cls: MagicMock, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test secret retrieval via Google Cloud Secret Manager SDK client."""
+    monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
+    monkeypatch.delenv("MOCK_SECRET_API_KEY", raising=False)
+
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_response.payload.data = b"super-secret-api-token"
+    mock_client.access_secret_version.return_value = mock_response
+    mock_client_cls.return_value = mock_client
+
+    result = get_gcp_secret("api-key", project_id="test-project", version_id="1")
+    assert result == "super-secret-api-token"
+    mock_client.access_secret_version.assert_called_once_with(
+        request={"name": "projects/test-project/secrets/api-key/versions/1"}
+    )
+
+
+@pytest.mark.unit
+@patch("tools.git_tools._get_github_client")
+def test_create_feature_branch_and_commit(mock_get_client: MagicMock) -> None:
+    """Test creating a feature branch and committing files via PyGithub mock."""
+    mock_g = MagicMock()
+    mock_repo = MagicMock()
+    mock_get_client.return_value = mock_g
+    mock_g.get_repo.return_value = mock_repo
+
+    # Mock base ref
+    mock_ref = MagicMock()
+    mock_ref.object.sha = "base_sha_12345"
+    mock_repo.get_git_ref.return_value = mock_ref
+
+    # Mock get_contents (simulate file does not exist -> create_file called)
+    from github import GithubException
+    mock_repo.get_contents.side_effect = GithubException(404, {"message": "Not Found"}, {})
+
+    mock_commit_res = {"commit": MagicMock(sha="new_sha_67890")}
+    mock_repo.create_file.return_value = mock_commit_res
+
+    res = create_feature_branch_and_commit(
+        repo_name="owner/repo",
+        branch_name="feature/test-branch",
+        files={"src/main.py": "print('hello')"},
+        commit_message="Add main.py",
+        token="test_token",
+    )
+
+    assert res["status"] == "SUCCESS"
+    assert res["commit_sha"] == "new_sha_67890"
+    assert res["committed_files_count"] == 1
+    mock_repo.create_git_ref.assert_called_once_with(ref="refs/heads/feature/test-branch", sha="base_sha_12345")
+
+
+@pytest.mark.unit
+@patch("tools.git_tools._get_github_client")
+def test_create_pull_request(mock_get_client: MagicMock) -> None:
+    """Test opening a GitHub Pull Request via PyGithub mock."""
+    mock_g = MagicMock()
+    mock_repo = MagicMock()
+    mock_get_client.return_value = mock_g
+    mock_g.get_repo.return_value = mock_repo
+    mock_repo.owner.login = "owner"
+
+    # Simulate no existing PRs
+    mock_repo.get_pulls.return_value = []
+
+    mock_pr = MagicMock(number=42, html_url="https://github.com/owner/repo/pull/42")
+    mock_repo.create_pull.return_value = mock_pr
+
+    res = create_pull_request(
+        repo_name="owner/repo",
+        branch_name="feature/test-branch",
+        title="New Feature PR",
+        body="PR body",
+        token="test_token",
+    )
+
+    assert res["status"] == "SUCCESS"
+    assert res["pr_number"] == 42
+    assert res["pr_url"] == "https://github.com/owner/repo/pull/42"
+    assert res["already_existed"] is False
+
+
+@pytest.mark.unit
+@patch("tools.ci_tools._get_github_client")
+def test_check_ci_status_passed(mock_get_client: MagicMock) -> None:
+    """Test checking CI status when all GitHub Actions check runs pass."""
+    mock_g = MagicMock()
+    mock_repo = MagicMock()
+    mock_pr = MagicMock()
+    mock_commit = MagicMock()
+
+    mock_get_client.return_value = mock_g
+    mock_g.get_repo.return_value = mock_repo
+    mock_repo.get_pull.return_value = mock_pr
+    mock_pr.head.sha = "head_sha_abc"
+    mock_repo.get_commit.return_value = mock_commit
+
+    mock_commit.get_combined_status().state = "success"
+
+    mock_check_1 = MagicMock(name="Unit Tests", status="completed", conclusion="success", html_url="url1")
+    mock_check_2 = MagicMock(name="Linter", status="completed", conclusion="success", html_url="url2")
+    mock_commit.get_check_runs.return_value = [mock_check_1, mock_check_2]
+
+    res = check_ci_status("owner/repo", pr_number=42, token="test_token")
+
+    assert res["status"] == "SUCCESS"
+    assert res["ci_passed"] is True
+    assert res["state_summary"] == "SUCCESS"
+    assert res["passed_checks"] == 2

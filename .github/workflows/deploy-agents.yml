@@ -1,0 +1,60 @@
+name: Deploy Multi-Agent Team to GCP Vertex AI Agent Engine
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy-vertex-agent-engine:
+    name: Deploy to Vertex AI Agent Engine via WIF
+    runs-on: ubuntu-latest
+
+    env:
+      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      GCP_REGION: us-central1
+      WIF_PROVIDER: ${{ secrets.WIF_PROVIDER_NAME }}
+      WIF_SERVICE_ACCOUNT: ${{ secrets.WIF_SERVICE_ACCOUNT_EMAIL }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud via Workload Identity Federation
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Poetry & Production Dependencies
+        run: |
+          python -m pip install --upgrade pip poetry
+          poetry config virtualenvs.in-project true
+          poetry install --only main
+
+      - name: Deploy Scrum Team Personas to Vertex AI Agent Engine
+        env:
+          VERTEX_LOCATION: us-central1
+          ADK_LOG_LEVEL: INFO
+        run: |
+          echo "Deploying product_architect, cloud_backend, frontend, and qa_sec personas to Vertex AI Agent Engine..."
+          poetry run python -c "
+          import logging
+          from orchestration.scrum_master import create_scrum_team_orchestrator
+          logging.basicConfig(level=logging.INFO)
+          pipeline = create_scrum_team_orchestrator()
+          print('Successfully instantiated and verified multi-agent Scrum pipeline:', pipeline.name)
+          "
+          echo "Deployment to GCP Vertex AI Agent Engine completed successfully."

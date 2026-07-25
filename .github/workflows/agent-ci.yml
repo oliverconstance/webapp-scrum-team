@@ -1,0 +1,45 @@
+name: Agent CI - Lint, Skill Validation & Test Suite
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, develop]
+
+jobs:
+  validate-and-test:
+    name: Validate Skills and Execute Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Poetry & Dependencies
+        run: |
+          python -m pip install --upgrade pip poetry
+          poetry config virtualenvs.in-project true
+          poetry install --with dev
+
+      - name: Run Ruff Code Linter
+        run: |
+          poetry run ruff check agents/ tools/ orchestration/ tests/
+          poetry run ruff format --check agents/ tools/ orchestration/ tests/
+
+      - name: Validate OpenAPI Spec YAML
+        run: |
+          poetry run python .agent/skills/openapi-spec-generator/scripts/validate_yaml.py --file .agent/skills/openapi-spec-generator/templates/standard_error_response.yaml
+
+      - name: Execute Pytest Test Suite
+        env:
+          GCP_PROJECT_ID: test-gcp-project
+          GITHUB_TOKEN: dummy-github-token-for-tests
+          MOCK_QA_IMMEDIATE_PASS: "true"
+        run: |
+          poetry run pytest tests/ -v --tb=short

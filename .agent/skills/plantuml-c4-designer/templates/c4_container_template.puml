@@ -1,0 +1,31 @@
+@startuml C4_GCP_Container_Architecture
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+LAYOUT_WITH_LEGEND()
+
+title C4 Container Diagram - GCP Serverless Multi-Agent Web Application
+
+Person(user, "End User", "A client using the web application via browser or mobile device.")
+System_Ext(auth_provider, "Google Identity / OIDC", "External OAuth2/OIDC authentication service.")
+
+System_Boundary(gcp_project, "Google Cloud Platform (GCP) Project Boundary") {
+    Container(web_app, "Frontend Application", "React, Next.js, Tailwind CSS", "Provides responsive UI and interactive UX states (Ideal, Loading, Error, Empty, Degraded). Deployed on Cloud Run or Firebase Hosting.")
+    
+    Container(api_service, "Backend REST API", "Python FastAPI / Node.js TypeScript, Cloud Run", "Handles core business logic, orchestrates ADK agents, and manages RESTful transactions conforming to OpenAPI 3.1.")
+    
+    ContainerDb(database, "Operational Database", "Cloud SQL for PostgreSQL / Firestore", "Stores application state, user profiles, agent transaction logs, and Scrum tickets.")
+    
+    ContainerDb(secret_store, "Secret Manager", "GCP Secret Manager", "Securely stores API keys, database credentials, and GitHub App private keys with least-privilege access.")
+    
+    Container(agent_engine, "Vertex AI Agent Engine", "Google ADK & Gemini 3.1 Pro/Flash", "Executes multi-agent Scrum workflows (product_architect, cloud_backend, frontend, qa_sec).")
+}
+
+Rel(user, web_app, "Visits and interacts with", "HTTPS / JSON")
+Rel(user, auth_provider, "Authenticates via", "OAuth2 / OIDC")
+Rel(web_app, api_service, "Makes REST API calls to", "HTTPS / JSON / RFC 7807")
+
+Rel(api_service, database, "Reads/writes operational state from/to", "Cloud SQL Proxy / gRPC")
+Rel(api_service, secret_store, "Retrieves runtime credentials from", "GCP IAM Service Account / gRPC")
+Rel(api_service, agent_engine, "Triggers and monitors Scrum agent sessions in", "Vertex AI SDK / REST")
+
+@enduml
