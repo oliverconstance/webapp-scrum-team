@@ -49,8 +49,11 @@ coverage.xml
 .pytest_cache/
 cover/
 
-# Environments
+# Environments & Secret Files
 .env
+.env.local
+.env.*
+!.env.example
 .venv
 env/
 venv/
@@ -60,14 +63,27 @@ venv.bak/
 .antigravity/
 .gemini/
 
-# GCP & Terraform
+# Keys, Certificates & GCP Credentials Security Rules
+*.pem
+*.key
+*.p12
+*.pfx
+*service_account*.json
+*service-account*.json
+*gcp*.json
+*credentials*.json
+*secret*.json
+*.sa.json
+
+# GCP & Terraform State
 .terraform/
 *.tfstate
 *.tfstate.backup
 .terraform.lock.hcl
 *.tfvars
+*.tfvars.json
 
-# IDEs
+# IDEs & System Files
 .vscode/
 .idea/
 *.swp

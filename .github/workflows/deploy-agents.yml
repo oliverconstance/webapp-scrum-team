@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   deploy-vertex-agent-engine:
-    name: Deploy to Vertex AI Agent Engine via WIF
+    name: Deploy to Vertex AI Agent Engine via Workload Identity Federation
     runs-on: ubuntu-latest
 
     env:
@@ -23,37 +23,56 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Authenticate to Google Cloud via Workload Identity Federation
-        id: auth
+      - name: Check if WIF or Service Account Secrets Exist
+        id: secret-check
+        run: |
+          if [ -n "${{ secrets.WIF_PROVIDER_NAME }}" ]; then
+            echo "auth_type=wif" >> $GITHUB_OUTPUT
+            echo "has_secrets=true" >> $GITHUB_OUTPUT
+          elif [ -n "${{ secrets.GCP_SA_KEY }}" ]; then
+            echo "auth_type=key" >> $GITHUB_OUTPUT
+            echo "has_secrets=true" >> $GITHUB_OUTPUT
+          else
+            echo "::warning ::No GCP authentication secrets found (WIF_PROVIDER_NAME or GCP_SA_KEY). Skipping deployment."
+            echo "has_secrets=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Authenticate to GCP via Workload Identity Federation (WIF)
+        if: steps.secret-check.outputs.has_secrets == 'true' && steps.secret-check.outputs.auth_type == 'wif'
+        id: auth-wif
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ env.WIF_PROVIDER }}
           service_account: ${{ env.WIF_SERVICE_ACCOUNT }}
 
+      - name: Authenticate to GCP via Service Account Key (Fallback)
+        if: steps.secret-check.outputs.has_secrets == 'true' && steps.secret-check.outputs.auth_type == 'key'
+        id: auth-key
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
       - name: Set up Cloud SDK
+        if: steps.secret-check.outputs.has_secrets == 'true'
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Set up Python 3.11
+        if: steps.secret-check.outputs.has_secrets == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install Poetry & Production Dependencies
+      - name: Install Dependencies & Verify ADK Orchestrator
+        if: steps.secret-check.outputs.has_secrets == 'true'
         run: |
           python -m pip install --upgrade pip poetry
           poetry config virtualenvs.in-project true
           poetry install --only main
 
-      - name: Deploy Scrum Team Personas to Vertex AI Agent Engine
-        env:
-          VERTEX_LOCATION: us-central1
-          ADK_LOG_LEVEL: INFO
-        run: |
-          echo "Registering agent personas (product_architect, cloud_backend, frontend, qa_sec) on Vertex AI Agent Engine..."
           gcloud config set project ${{ secrets.GCP_PROJECT_ID }}
           gcloud config set ai_platform/region us-central1
 
-          # Instantiate and verify agent orchestration pipeline configuration
+          echo "Validating agent persona configurations..."
           poetry run python -c "
           import logging
           from orchestration.scrum_master import create_scrum_team_orchestrator
@@ -61,5 +80,4 @@ jobs:
           pipeline = create_scrum_team_orchestrator()
           print('Successfully validated multi-agent Scrum pipeline:', pipeline.name)
           "
-
-          echo "Deployment to GCP Vertex AI Agent Engine completed successfully."
+          echo "Deployment verification completed successfully."
