@@ -116,6 +116,8 @@ jobs:
                       description='GCP-Native Multi-Agent Scrum Team Orchestrator',
                       requirements=[
                           'google-cloud-aiplatform[reasoningengine,langchain]>=1.70.0',
+                          'opentelemetry-api<=1.43.0',
+                          'opentelemetry-sdk<=1.43.0',
                           'google-genai>=0.3.0',
                           'google-cloud-secret-manager>=2.20.0',
                           'google-cloud-storage>=2.18.0',
