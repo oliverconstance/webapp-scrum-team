@@ -1,8 +1,8 @@
 """Circuit Breaker logic for Google ADK Multi-Agent Scrum Workflows.
 
 Evaluates QA JSON audit responses (`{"status": "PASS"|"FAIL", ...}`), updates session state,
-records iteration history, increments retry counters, and trips the circuit breaker if retry thresholds
-(`retry_count >= 3`) are exceeded to prevent infinite LLM execution loops and budget exhaustion.
+records iteration history, increments retry counters, and trips the circuit breaker if retry
+thresholds (`retry_count >= 3`) are exceeded to prevent infinite loops and budget exhaustion.
 """
 
 import json
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_CIRCUIT_BREAKER_THRESHOLD = 3
 
 
-class CircuitBreakerTrippedException(Exception):
+class CircuitBreakerTrippedError(Exception):
     """Exception raised when the maximum sprint retry threshold is reached."""
 
     def __init__(self, message: str, state: ScrumSessionStateModel):
@@ -98,7 +98,7 @@ def evaluate_qa_feedback_and_break(
     max_retries: int = DEFAULT_CIRCUIT_BREAKER_THRESHOLD,
     verify_ci_func: Any | None = None,
 ) -> tuple[bool, ScrumSessionStateModel]:
-    """Evaluate qa_sec audit response, update state, record history, and check circuit breaker threshold.
+    """Evaluate qa_sec audit response, update state, record history, and check circuit breaker.
 
     Args:
         state: Current ScrumSessionStateModel instance.
@@ -110,10 +110,11 @@ def evaluate_qa_feedback_and_break(
         Tuple of (should_continue_loop: bool, updated_state: ScrumSessionStateModel).
 
     Raises:
-        CircuitBreakerTrippedException: If retry_count >= max_retries after a FAIL verdict.
+        CircuitBreakerTrippedError: If retry_count >= max_retries after a FAIL verdict.
     """
     logger.info(
-        f"Evaluating QA feedback for ticket '{state.ticket_id}' (Current retry count: {state.retry_count})."
+        f"Evaluating QA feedback for '{state.ticket_id}' "
+        f"(Current retry count: {state.retry_count})."
     )
 
     try:
@@ -130,8 +131,9 @@ def evaluate_qa_feedback_and_break(
 
         if state.retry_count >= max_retries:
             state.status = "CIRCUIT_BROKEN"
-            raise CircuitBreakerTrippedException(
-                f"Circuit breaker tripped for '{state.ticket_id}': Exceeded {max_retries} retries due to invalid QA output format.",
+            raise CircuitBreakerTrippedError(
+                f"Circuit breaker tripped for '{state.ticket_id}': Exceeded {max_retries} retries "
+                "due to invalid QA output format.",
                 state=state,
             ) from e
         return True, state
@@ -158,12 +160,16 @@ def evaluate_qa_feedback_and_break(
                     state.retry_count += 1
                     state.status = "FAIL"
                     state.ci_passed = False
-                    state.feedback = f"QA auditor approved PR, but automated GitHub CI checks failed: {ci_res.get('state_summary')}."
+                    state_sum = ci_res.get("state_summary")
+                    state.feedback = (
+                        f"QA auditor approved PR, but automated CI checks failed: {state_sum}."
+                    )
                     state.record_iteration("circuit_breaker", "ci_check", "FAIL", state.feedback)
                     if state.retry_count >= max_retries:
                         state.status = "CIRCUIT_BROKEN"
-                        raise CircuitBreakerTrippedException(
-                            f"Circuit breaker tripped for '{state.ticket_id}': Exceeded retries due to failing CI checks.",
+                        raise CircuitBreakerTrippedError(
+                            f"Circuit breaker tripped for '{state.ticket_id}': "
+                            "Exceeded retries due to failing CI checks.",
                             state=state,
                         )
                     return True, state
@@ -185,7 +191,8 @@ def evaluate_qa_feedback_and_break(
         state.record_iteration("qa_sec", "audit", "FAIL", feedback)
 
         logger.warning(
-            f"QA Audit FAILED for ticket '{state.ticket_id}'. Incremented retry count to {state.retry_count}/{max_retries}.\n"
+            f"QA Audit FAILED for ticket '{state.ticket_id}'. "
+            f"Incremented retry count to {state.retry_count}/{max_retries}.\n"
             f"Failed criteria: {state.failed_criteria}\nFeedback: {state.feedback}"
         )
 
@@ -194,8 +201,9 @@ def evaluate_qa_feedback_and_break(
             logger.error(
                 f"CIRCUIT BREAKER TRIPPED for ticket '{state.ticket_id}'. Halting execution."
             )
-            raise CircuitBreakerTrippedException(
-                f"Circuit breaker tripped for '{state.ticket_id}': Exceeded {max_retries} retries without QA PASS verdict.",
+            raise CircuitBreakerTrippedError(
+                f"Circuit breaker tripped for '{state.ticket_id}': "
+                f"Exceeded {max_retries} retries without QA PASS verdict.",
                 state=state,
             )
 
@@ -212,7 +220,7 @@ def evaluate_qa_feedback_and_break(
 
     if state.retry_count >= max_retries:
         state.status = "CIRCUIT_BROKEN"
-        raise CircuitBreakerTrippedException(
+        raise CircuitBreakerTrippedError(
             f"Circuit breaker tripped for '{state.ticket_id}': Exceeded {max_retries} retries.",
             state=state,
         )

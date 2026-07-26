@@ -54,7 +54,8 @@ def get_gcp_secret(
         return payload_bytes.decode("utf-8")
     except PermissionDenied as e:
         logger.error(
-            f"Permission denied accessing secret '{secret_id}'. Verify IAM least-privilege role binding."
+            f"Permission denied accessing secret '{secret_id}'. "
+            "Verify IAM least-privilege role binding."
         )
         raise RuntimeError(
             f"IAM PermissionDenied accessing secret '{secret_id}' in project '{target_project}'. "

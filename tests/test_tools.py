@@ -1,7 +1,7 @@
 """Unit and integration tests for Python ADK tools in tools/.
 
-Verifies git branch/atomic commit creation, pull request generation, Secret Manager credential resolution,
-and CI status checking using mock objects and pytest fixtures.
+Verifies git branch/atomic commit creation, pull request generation, Secret Manager credential
+resolution, and CI status checking using mock objects and pytest fixtures.
 """
 
 from unittest.mock import MagicMock, patch
@@ -48,7 +48,7 @@ def test_get_gcp_secret_api_call(
 @pytest.mark.unit
 @patch("tools.git_tools._get_github_client")
 def test_create_feature_branch_and_commit_atomic(mock_get_client: MagicMock) -> None:
-    """Test creating a feature branch and committing files ATOMICALLY via PyGithub Git Data Tree mock."""
+    """Test creating feature branch and committing ATOMICALLY via PyGithub Git Data Tree mock."""
     mock_g = MagicMock()
     mock_repo = MagicMock()
     mock_get_client.return_value = mock_g
@@ -121,7 +121,7 @@ def test_create_pull_request(mock_get_client: MagicMock) -> None:
 @pytest.mark.unit
 @patch("tools.ci_tools._get_github_client")
 def test_check_ci_status_with_skipped_checks(mock_get_client: MagicMock) -> None:
-    """Test checking CI status when check runs include skipped/neutral steps without false negatives."""
+    """Test checking CI status when check runs include skipped/neutral steps."""
     mock_g = MagicMock()
     mock_repo = MagicMock()
     mock_pr = MagicMock()

@@ -85,7 +85,8 @@ def check_ci_status(repo_name: str, pr_number: int, token: str | None = None) ->
             state_summary = combined_status.upper()
 
         logger.info(
-            f"CI status for PR #{pr_number} ({head_sha[:7]}): {state_summary} ({passed_checks} passed, {skipped_checks} skipped, {failed_checks} failed)"
+            f"CI status for PR #{pr_number} ({head_sha[:7]}): {state_summary} "
+            f"({passed_checks} passed, {skipped_checks} skipped, {failed_checks} failed)"
         )
 
         return {

@@ -142,7 +142,8 @@ def create_feature_branch_and_commit(
         # Update branch ref to point to new commit
         target_ref.edit(new_commit.sha)
         logger.info(
-            f"Successfully committed {len(committed_files)} files atomically to '{branch_name}' ({new_commit.sha[:7]})."
+            f"Successfully committed {len(committed_files)} files atomically to "
+            f"'{branch_name}' ({new_commit.sha[:7]})."
         )
 
         return {

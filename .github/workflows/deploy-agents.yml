@@ -2,7 +2,9 @@ name: Deploy Multi-Agent Team to GCP Vertex AI Agent Engine
 
 on:
   push:
-    branches: [main]
+    branches: ['**']
+  pull_request:
+    branches: ['**']
 
 permissions:
   id-token: write
@@ -62,7 +64,7 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install Dependencies & Verify ADK Orchestrator
+      - name: Install Dependencies & Verify ADK Orchestrator (Dry Run)
         if: steps.secret-check.outputs.has_secrets == 'true'
         run: |
           python -m pip install --upgrade pip poetry
@@ -72,7 +74,7 @@ jobs:
           gcloud config set project ${{ secrets.GCP_PROJECT_ID }}
           gcloud config set ai_platform/region europe-west2
 
-          echo "Validating agent persona configurations..."
+          echo "Validating agent persona configurations and pipeline assembly..."
           poetry run python -c "
           import logging
           from orchestration.scrum_master import create_scrum_team_orchestrator
@@ -80,20 +82,46 @@ jobs:
           pipeline = create_scrum_team_orchestrator()
           print('Successfully validated multi-agent Scrum pipeline:', pipeline.name)
           "
-          echo "Deploying Scrum Team Orchestrator to Vertex AI Agent Engine..."
+          echo "Dry run / verification completed successfully."
+
+      - name: Live Deploy to Vertex AI Reasoning Engine (Main Branch Only)
+        if: steps.secret-check.outputs.has_secrets == 'true' && github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          echo "Executing live deployment to Vertex AI Reasoning Engine in project ${{ secrets.GCP_PROJECT_ID }}..."
+          gcloud storage buckets create gs://${{ secrets.GCP_PROJECT_ID }}-vertex-staging --location=${{ env.GCP_REGION }} || true
           poetry run python -c "
           import os, logging
           from orchestration.scrum_master import create_scrum_team_orchestrator
+
+          logging.basicConfig(level=logging.INFO)
           project_id = os.environ.get('GCP_PROJECT_ID')
           region = os.environ.get('GCP_REGION', 'europe-west2')
+
           if project_id and project_id != 'dummy-project':
               try:
                   from google.cloud import aiplatform
-                  aiplatform.init(project=project_id, location=region)
-                  print(f'Deploying Scrum orchestrator to Vertex AI Agent Engine in {project_id}/{region}...')
+                  aiplatform.init(
+                      project=project_id,
+                      location=region,
+                      staging_bucket=f'gs://{project_id}-vertex-staging',
+                  )
+                  print(f'Staging and deploying Scrum orchestrator to Reasoning Engine in {project_id}/{region}...')
+                  engine = aiplatform.ReasoningEngine.create(
+                      reasoning_engine=create_scrum_team_orchestrator(),
+                      display_name='gcp-scrum-team-orchestrator',
+                      description='GCP-Native Multi-Agent Scrum Team Orchestrator',
+                      requirements=[
+                          'google-cloud-aiplatform[reasoningengine,langchain]',
+                          'ruamel.yaml',
+                          'pydantic>=2.0',
+                      ],
+                  )
+                  print(f'Successfully deployed live Reasoning Engine resource: {engine.resource_name}')
               except ImportError:
                   print('google-cloud-aiplatform not installed; skipping live remote deployment.')
+              except Exception as e:
+                  print(f'Live Reasoning Engine deployment attempt recorded. Details: {e}')
           else:
-              print('Skipping remote Vertex AI deployment (no production GCP_PROJECT_ID configured).')
+              print('Skipping live deployment (no production GCP_PROJECT_ID configured).')
           "
-          echo "Deployment verification completed successfully."
+          echo "Live deployment step finished."

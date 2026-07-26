@@ -1,13 +1,13 @@
 """Unit and integration tests for Google ADK Agent Orchestration and Circuit Breaker handoffs.
 
-Verifies state serialization, QA JSON evaluation, retry counter incrementation, circuit breaker
-tripping, iteration recording, dynamic config loading, and full sequential/loop agent pipeline execution.
+Verifies state serialization, QA JSON evaluation, retry counter incrementation, circuit
+breaker tripping, iteration recording, dynamic config loading, and sequential/loop execution.
 """
 
 import pytest
 
 from orchestration.circuit_breaker import (
-    CircuitBreakerTrippedException,
+    CircuitBreakerTrippedError,
     evaluate_qa_feedback_and_break,
 )
 from orchestration.scrum_master import (
@@ -50,7 +50,10 @@ def test_scrum_session_state_model_serialization() -> None:
 def test_evaluate_qa_feedback_pass() -> None:
     """Test that a QA PASS verdict immediately terminates the sprint loop."""
     state = ScrumSessionStateModel(ticket_id="TEST-001", feature_name="Test Feature")
-    qa_output = '```json\n{\n  "status": "PASS",\n  "failed_criteria": [],\n  "actionable_feedback": "Looks great."\n}\n```'
+    qa_output = (
+        '```json\n{\n  "status": "PASS",\n  "failed_criteria": [],\n'
+        '  "actionable_feedback": "Looks great."\n}\n```'
+    )
 
     should_continue, updated = evaluate_qa_feedback_and_break(state, qa_output, max_retries=3)
     assert should_continue is False
@@ -62,7 +65,7 @@ def test_evaluate_qa_feedback_pass() -> None:
 
 @pytest.mark.unit
 def test_evaluate_qa_feedback_nested_json_parsing() -> None:
-    """Test that QA output containing nested JSON structures parses correctly without regex truncation."""
+    """Test QA output with nested JSON structures parses correctly without regex truncation."""
     state = ScrumSessionStateModel(ticket_id="TEST-002", feature_name="Nested JSON Test")
     qa_output = """
     ```json
@@ -93,9 +96,12 @@ def test_evaluate_qa_feedback_nested_json_parsing() -> None:
 def test_evaluate_qa_feedback_circuit_breaker_tripped() -> None:
     """Test that exceeding max_retries trips the circuit breaker exception."""
     state = ScrumSessionStateModel(ticket_id="TEST-001", feature_name="Test Feature", retry_count=2)
-    qa_output = '{"status": "FAIL", "failed_criteria": ["Still failing."], "actionable_feedback": "Try again."}'
+    qa_output = (
+        '{"status": "FAIL", "failed_criteria": ["Still failing."], '
+        '"actionable_feedback": "Try again."}'
+    )
 
-    with pytest.raises(CircuitBreakerTrippedException) as exc_info:
+    with pytest.raises(CircuitBreakerTrippedError) as exc_info:
         evaluate_qa_feedback_and_break(state, qa_output, max_retries=3)
 
     assert exc_info.value.state.status == "CIRCUIT_BROKEN"
@@ -175,7 +181,7 @@ def test_specialized_backend_and_frontend_qa_loops(monkeypatch: pytest.MonkeyPat
 
 @pytest.mark.unit
 def test_dual_track_frontend_orchestration(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test that full sequential orchestration correctly routes a FRONTEND ticket to frontend dev_qa_loop."""
+    """Test that full sequential orchestration correctly routes FRONTEND ticket to dev_qa_loop."""
     monkeypatch.setenv("MOCK_QA_IMMEDIATE_PASS", "true")
     orchestrator = create_scrum_team_orchestrator(max_loop_iterations=3)
     state = ScrumSessionStateModel(

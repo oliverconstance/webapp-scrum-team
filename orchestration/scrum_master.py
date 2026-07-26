@@ -1,8 +1,8 @@
 """Google ADK Scrum Master Orchestration Engine for Vertex AI Agent Engine.
 
 Instantiates `LlmAgent` personas (`product_architect`, `cloud_backend`, `frontend`, `qa_sec`),
-dynamically loads configurations from `config.yaml` and `instructions.md`, binds native Python tools,
-assembles the iterative `LoopAgent` (`dev_qa_loop`), and executes the top-level `SequentialAgent` pipeline.
+dynamically loads configs from `config.yaml` and `instructions.md`, binds native Python tools,
+assembles the iterative `LoopAgent`, and executes the main `SequentialAgent` pipeline.
 """
 
 import logging
@@ -14,7 +14,7 @@ from typing import Any
 from ruamel.yaml import YAML
 
 from orchestration.circuit_breaker import (
-    CircuitBreakerTrippedException,
+    CircuitBreakerTrippedError,
     evaluate_qa_feedback_and_break,
 )
 from orchestration.state import ScrumSessionStateModel
@@ -136,7 +136,10 @@ class LlmAgent:
                 "SUCCESS",
                 "PRD, ADR, C4 diagrams, and tickets generated.",
             )
-            return f"Architectural specification and tickets for {state.ticket_id} generated successfully."
+            return (
+                f"Architectural specification and tickets for {state.ticket_id} "
+                "generated successfully."
+            )
 
         elif self.name == "cloud_backend":
             pr_num = state.retry_count + 1
@@ -156,7 +159,10 @@ class LlmAgent:
             state.record_iteration(
                 self.name, "frontend_implementation", "SUCCESS", f"Created PR #{pr_num}"
             )
-            return f"Frontend Next.js implementation complete across 5 UX states. Created PR #{pr_num} at {state.pr_url}."
+            return (
+                f"Frontend Next.js implementation complete across 5 UX states. "
+                f"Created PR #{pr_num} at {state.pr_url}."
+            )
 
         elif self.name == "qa_sec":
             status_val = (
@@ -183,7 +189,7 @@ class LlmAgent:
 
 
 class LoopAgent:
-    """Google ADK LoopAgent executing sub-agents iteratively until break condition or max iterations."""
+    """Google ADK LoopAgent executing sub-agents iteratively until break condition or max limit."""
 
     def __init__(self, name: str, sub_agents: list[LlmAgent], max_iterations: int = 3):
         self.name = name
@@ -192,9 +198,11 @@ class LoopAgent:
 
     def run(self, state: ScrumSessionStateModel) -> ScrumSessionStateModel:
         """Run the iterative development and QA loop under circuit breaker governance."""
-        logger.info(f"Starting LoopAgent '{self.name}' (Max Iterations: {self.max_iterations})...")
+        logger.info(
+            f"Starting LoopAgent '{self.name}' (Max Iterations: {self.max_iterations})..."
+        )
 
-        # Separate developer personas from auditor personas dynamically without hardcoded assumptions
+        # Separate developer personas from auditor personas dynamically without hardcoded indices
         developers = [
             agent
             for agent in self.sub_agents
@@ -214,7 +222,7 @@ class LoopAgent:
         for iteration in range(1, self.max_iterations + 1):
             logger.info(f"--- {self.name} Iteration {iteration}/{self.max_iterations} ---")
 
-            # 1. Execute Developer persona matching ticket category without hardcoded index assumptions
+            # 1. Execute Developer persona matching ticket category dynamically
             active_devs = []
             if state.ticket_type == "FRONTEND":
                 active_devs = [
@@ -233,8 +241,12 @@ class LoopAgent:
                 active_devs = [developers[0]] if developers else []
 
             for target_dev in active_devs:
+                dev_prompt = (
+                    f"Implement requirements for {state.ticket_id} ({state.ticket_type}). "
+                    f"Feedback: {state.feedback}"
+                )
                 dev_output = target_dev.execute(
-                    prompt=f"Implement requirements for {state.ticket_id} ({state.ticket_type}). Feedback: {state.feedback}",
+                    prompt=dev_prompt,
                     state=state,
                 )
                 logger.debug(f"{target_dev.name} output: {dev_output}")
@@ -258,10 +270,11 @@ class LoopAgent:
                 state = updated_state
                 if not should_continue:
                     logger.info(
-                        f"LoopAgent '{self.name}' terminated early: QA PASSED on iteration {iteration}."
+                        f"LoopAgent '{self.name}' terminated early: "
+                        f"QA PASSED on iteration {iteration}."
                     )
                     break
-            except CircuitBreakerTrippedException as e:
+            except CircuitBreakerTrippedError as e:
                 logger.error(f"LoopAgent '{self.name}' halted by circuit breaker: {e}")
                 raise
 
@@ -298,7 +311,7 @@ def create_scrum_team_orchestrator(
     base_dir: Path | None = None,
     max_loop_iterations: int = 3,
 ) -> SequentialAgent:
-    """Instantiate Google ADK LlmAgents dynamically from config.yaml, bind tools, and return main SequentialAgent.
+    """Instantiate ADK LlmAgents from config.yaml, bind tools, and return main SequentialAgent.
 
     Args:
         base_dir: Root repository path containing 'agents/'. Defaults to current working directory.
