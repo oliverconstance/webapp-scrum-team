@@ -313,7 +313,7 @@ class SequentialAgent:
     ) -> dict[str, Any]:
         """Vertex AI Reasoning Engine API entrypoint."""
         if state_dict:
-            state = ScrumSessionStateModel.from_typed_dict(cast(dict[str, Any], state_dict))
+            state = ScrumSessionStateModel.from_typed_dict(state_dict)
         else:
             state = ScrumSessionStateModel(
                 ticket_id=ticket_id,
