@@ -9,7 +9,7 @@ import logging
 import os
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from ruamel.yaml import YAML
 
@@ -313,17 +313,17 @@ class SequentialAgent:
     ) -> dict[str, Any]:
         """Vertex AI Reasoning Engine API entrypoint."""
         if state_dict:
-            state = ScrumSessionStateModel.from_typed_dict(state_dict)
+            state = ScrumSessionStateModel.from_typed_dict(cast(dict[str, Any], state_dict))
         else:
             state = ScrumSessionStateModel(
                 ticket_id=ticket_id,
+                feature_name=description,
                 ticket_type=ticket_type,
-                description=description,
                 repo_name=repo_name,
                 branch_name=branch_name,
             )
         result_state = self.run(state)
-        return result_state.to_typed_dict()
+        return cast(dict[str, Any], result_state.to_typed_dict())
 
 
 # ------------------------------------------------------------------------------

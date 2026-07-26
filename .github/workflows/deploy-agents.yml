@@ -99,15 +99,31 @@ jobs:
           if project_id and project_id != 'dummy-project':
               try:
                   import vertexai
+                  from google.cloud import storage
                   try:
                       from vertexai.preview import reasoning_engines as re_module
                   except ImportError:
                       from vertexai import agent_engines as re_module
 
+                  client = storage.Client(project=project_id)
+                  buckets = list(client.list_buckets(max_results=10))
+                  staging_bucket = None
+                  for b in buckets:
+                      if any(k in b.name for k in ['staging', 'vertex', 'aiplatform', project_id]):
+                          staging_bucket = f'gs://{b.name}'
+                          break
+                  if not staging_bucket and buckets:
+                      staging_bucket = f'gs://{buckets[0].name}'
+                  if not staging_bucket:
+                      staging_bucket = f'gs://{project_id}-vertex-staging'
+                      print(f'No existing buckets found; attempting with {staging_bucket}')
+                  else:
+                      print(f'Using existing GCS bucket for staging: {staging_bucket}')
+
                   vertexai.init(
                       project=project_id,
                       location=region,
-                      staging_bucket=f'gs://{project_id}-vertex-staging',
+                      staging_bucket=staging_bucket,
                   )
                   print(f'Staging and deploying Scrum orchestrator to Reasoning Engine in {project_id}/{region}...')
                   engine = re_module.ReasoningEngine.create(
