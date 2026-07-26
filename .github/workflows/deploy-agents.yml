@@ -115,10 +115,16 @@ jobs:
                       display_name='gcp-scrum-team-orchestrator',
                       description='GCP-Native Multi-Agent Scrum Team Orchestrator',
                       requirements=[
-                          'google-cloud-aiplatform[reasoningengine,langchain]',
-                          'ruamel.yaml',
-                          'pydantic>=2.0',
+                          'google-cloud-aiplatform[reasoningengine,langchain]>=1.70.0',
+                          'google-genai>=0.3.0',
+                          'google-cloud-secret-manager>=2.20.0',
+                          'google-cloud-storage>=2.18.0',
+                          'PyGithub>=2.3.0',
+                          'pydantic>=2.8.0',
+                          'ruamel.yaml>=0.18.6',
+                          'typing-extensions>=4.12.0',
                       ],
+                      extra_packages=["."],
                   )
                   print(f'Successfully deployed live Reasoning Engine resource: {engine.resource_name}')
               except Exception as e:
