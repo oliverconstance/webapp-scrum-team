@@ -17,7 +17,7 @@ packages = [
 [tool.poetry.dependencies]
 python = "^3.11"
 google-genai = "^0.3.0"
-google-cloud-secretmanager = "^2.20.0"
+google-cloud-secret-manager = "^2.20.0"
 google-cloud-storage = "^2.18.0"
 google-cloud-aiplatform = "^1.70.0"
 PyGithub = "^2.3.0"
