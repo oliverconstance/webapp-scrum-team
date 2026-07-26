@@ -301,6 +301,30 @@ class SequentialAgent:
         logger.info(f"SequentialAgent Pipeline '{self.name}' finished successfully.")
         return state
 
+    def query(
+        self,
+        ticket_id: str = "TICKET-001",
+        ticket_type: str = "BACKEND",
+        description: str = "Execute Scrum workflow",
+        repo_name: str = "owner/repo",
+        branch_name: str = "main",
+        state_dict: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Vertex AI Reasoning Engine API entrypoint."""
+        if state_dict:
+            state = ScrumSessionStateModel.from_typed_dict(state_dict)
+        else:
+            state = ScrumSessionStateModel(
+                ticket_id=ticket_id,
+                ticket_type=ticket_type,
+                description=description,
+                repo_name=repo_name,
+                branch_name=branch_name,
+            )
+        result_state = self.run(state)
+        return result_state.to_typed_dict()
+
 
 # ------------------------------------------------------------------------------
 # Orchestration Setup & Execution
