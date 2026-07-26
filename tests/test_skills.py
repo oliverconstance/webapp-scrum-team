@@ -43,28 +43,28 @@ def test_skills_frontmatter_existence_and_schema() -> None:
     yaml = YAML(typ="safe")
     for skill_path in skill_files:
         content = skill_path.read_text(encoding="utf-8")
-        assert content.startswith("---"), (
-            f"{skill_path} must start with YAML frontmatter delimiter '---'."
-        )
+        assert content.startswith(
+            "---"
+        ), f"{skill_path} must start with YAML frontmatter delimiter '---'."
 
         parts = content.split("---", 2)
-        assert len(parts) >= 3, (
-            f"{skill_path} YAML frontmatter is malformed or missing closing '---'."
-        )
+        assert (
+            len(parts) >= 3
+        ), f"{skill_path} YAML frontmatter is malformed or missing closing '---'."
 
         frontmatter_raw = parts[1]
         data: dict[str, Any] = yaml.load(frontmatter_raw)
 
         assert isinstance(data, dict), f"Frontmatter in {skill_path} must parse to a dictionary."
-        assert "name" in data and isinstance(data["name"], str), (
-            f"Missing string 'name' in {skill_path}."
-        )
-        assert "description" in data and isinstance(data["description"], str), (
-            f"Missing 'description' in {skill_path}."
-        )
-        assert len(data["description"].strip()) > 20, (
-            f"Description in {skill_path} must be detailed (>20 chars)."
-        )
+        assert "name" in data and isinstance(
+            data["name"], str
+        ), f"Missing string 'name' in {skill_path}."
+        assert "description" in data and isinstance(
+            data["description"], str
+        ), f"Missing 'description' in {skill_path}."
+        assert (
+            len(data["description"].strip()) > 20
+        ), f"Description in {skill_path} must be detailed (>20 chars)."
 
 
 @pytest.mark.unit

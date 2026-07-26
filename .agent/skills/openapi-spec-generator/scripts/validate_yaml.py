@@ -4,6 +4,7 @@
 Validates that a provided specification file is valid YAML, adheres to OpenAPI 3.1 structure,
 and contains standard RFC 7807 problem details definitions for error handling.
 """
+
 import argparse
 import sys
 from pathlib import Path
@@ -71,9 +72,8 @@ def validate_openapi_spec(file_path: Path) -> bool:
     # Check for RFC 7807 ProblemDetails schema in components
     components = data.get("components", {})
     schemas = components.get("schemas", {}) if isinstance(components, dict) else {}
-    has_problem_details = (
-        isinstance(schemas, dict)
-        and ("ProblemDetails" in schemas or "ErrorResponse" in schemas or "Problem" in schemas)
+    has_problem_details = isinstance(schemas, dict) and (
+        "ProblemDetails" in schemas or "ErrorResponse" in schemas or "Problem" in schemas
     )
     if not has_problem_details:
         print(

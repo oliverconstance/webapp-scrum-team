@@ -88,7 +88,6 @@ jobs:
         if: steps.secret-check.outputs.has_secrets == 'true' && github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
           echo "Executing live deployment to Vertex AI Reasoning Engine in project ${{ secrets.GCP_PROJECT_ID }}..."
-          gcloud storage buckets create gs://${{ secrets.GCP_PROJECT_ID }}-vertex-staging --location=${{ env.GCP_REGION }} || true
           poetry run python -c "
           import os, logging
           from orchestration.scrum_master import create_scrum_team_orchestrator
@@ -100,13 +99,14 @@ jobs:
           if project_id and project_id != 'dummy-project':
               try:
                   from google.cloud import aiplatform
+                  from google.cloud.aiplatform import reasoning_engine
                   aiplatform.init(
                       project=project_id,
                       location=region,
                       staging_bucket=f'gs://{project_id}-vertex-staging',
                   )
                   print(f'Staging and deploying Scrum orchestrator to Reasoning Engine in {project_id}/{region}...')
-                  engine = aiplatform.ReasoningEngine.create(
+                  engine = reasoning_engine.ReasoningEngine.create(
                       reasoning_engine=create_scrum_team_orchestrator(),
                       display_name='gcp-scrum-team-orchestrator',
                       description='GCP-Native Multi-Agent Scrum Team Orchestrator',

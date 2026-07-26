@@ -198,9 +198,7 @@ class LoopAgent:
 
     def run(self, state: ScrumSessionStateModel) -> ScrumSessionStateModel:
         """Run the iterative development and QA loop under circuit breaker governance."""
-        logger.info(
-            f"Starting LoopAgent '{self.name}' (Max Iterations: {self.max_iterations})..."
-        )
+        logger.info(f"Starting LoopAgent '{self.name}' (Max Iterations: {self.max_iterations})...")
 
         # Separate developer personas from auditor personas dynamically without hardcoded indices
         developers = [
