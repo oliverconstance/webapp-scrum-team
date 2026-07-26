@@ -4,6 +4,8 @@ Verifies state serialization, QA JSON evaluation, retry counter incrementation, 
 breaker tripping, iteration recording, dynamic config loading, and sequential/loop execution.
 """
 
+from typing import Any, cast
+
 import pytest
 
 from orchestration.circuit_breaker import (
@@ -41,7 +43,7 @@ def test_scrum_session_state_model_serialization() -> None:
     assert typed_dict["ticket_id"] == "TICKET-BACKEND-001"
     assert typed_dict["repo_name"] == "owner/repo"
 
-    restored = ScrumSessionStateModel.from_typed_dict(typed_dict)
+    restored = ScrumSessionStateModel.from_typed_dict(cast(dict[str, Any], typed_dict))
     assert restored.ticket_id == state.ticket_id
     assert restored.branch_name == "feature/orders"
 

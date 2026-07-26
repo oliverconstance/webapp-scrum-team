@@ -19,7 +19,7 @@ python = "^3.11"
 google-genai = "^0.3.0"
 google-cloud-secret-manager = "^2.20.0"
 google-cloud-storage = "^2.18.0"
-google-cloud-aiplatform = "^1.70.0"
+google-cloud-aiplatform = {version = "^1.70.0", extras = ["reasoningengine"]}
 PyGithub = "^2.3.0"
 pydantic = "^2.8.0"
 "ruamel.yaml" = "^0.18.6"

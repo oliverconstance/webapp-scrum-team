@@ -9,7 +9,7 @@ import importlib.util
 import sys
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from ruamel.yaml import YAML
@@ -28,7 +28,7 @@ def _load_validate_openapi_spec_func() -> Callable[[Path], bool]:
     module = importlib.util.module_from_spec(spec)
     sys.modules["validate_yaml"] = module
     spec.loader.exec_module(module)
-    return module.validate_openapi_spec
+    return cast(Callable[[Path], bool], module.validate_openapi_spec)
 
 
 @pytest.mark.unit
