@@ -114,6 +114,7 @@ jobs:
                       reasoning_engine=create_scrum_team_orchestrator(),
                       display_name='gcp-scrum-team-orchestrator',
                       description='GCP-Native Multi-Agent Scrum Team Orchestrator',
+                      service_account='agent-scrum-reasoning-gemini-a@multi-agent-dev-team-502213.iam.gserviceaccount.com',
                       requirements=[
                           'google-cloud-aiplatform[reasoningengine,langchain]>=1.70.0',
                           'opentelemetry-api<=1.43.0',
