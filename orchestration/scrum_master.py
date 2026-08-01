@@ -126,8 +126,8 @@ class LlmAgent:
         )
 
         try:
-            # We use Vertex AI credentials if available, otherwise fallback
-            loc = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
+            # The 3.x preview models are hosted in the 'global' endpoint
+            loc = os.environ.get("VERTEX_AI_MODEL_LOCATION", "global")
             client = genai.Client(vertexai=True, location=loc)
         except Exception:
             client = genai.Client()
