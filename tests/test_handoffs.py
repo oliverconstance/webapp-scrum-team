@@ -29,7 +29,14 @@ def mock_genai_client():
 
         def send_message_side_effect(prompt):
             resp = MagicMock()
-            if "qa_sec" in str(mock_client.call_args) or '"status"' in prompt:
+            resp.function_calls = None
+            if isinstance(prompt, list):
+                # Parts list
+                prompt_str = str(prompt)
+            else:
+                prompt_str = str(prompt)
+                
+            if "qa_sec" in str(mock_client.call_args) or '"status"' in prompt_str:
                 resp.text = (
                     '{"status": "PASS", "failed_criteria": [], '
                     '"actionable_feedback": "Looks good."}'

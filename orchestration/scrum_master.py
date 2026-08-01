@@ -187,6 +187,35 @@ class LlmAgent:
         try:
             chat = client.chats.create(model=self.model, config=config)
             response = chat.send_message(full_prompt)
+            
+            # Execute tool calls dynamically
+            while response.function_calls:
+                parts = []
+                for fc in response.function_calls:
+                    func_name = fc.name
+                    args = fc.args
+                    
+                    if func_name == "update_session_state":
+                        result = update_session_state(**args)
+                    else:
+                        func = next((t for t in active_tools if getattr(t, "__name__", "") == func_name), None)
+                        if func:
+                            try:
+                                result = func(**args)
+                            except Exception as ex:
+                                result = {"error": str(ex)}
+                        else:
+                            result = {"error": f"Unknown tool: {func_name}"}
+                            
+                    parts.append(
+                        types.Part.from_function_response(
+                            name=func_name,
+                            response={"result": result}
+                        )
+                    )
+                
+                response = chat.send_message(parts)
+
             # Log state changes
             if self.name != "qa_sec":
                 state.record_iteration(
