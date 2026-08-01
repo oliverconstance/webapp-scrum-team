@@ -202,8 +202,7 @@ def evaluate_qa_feedback_and_break(
                 f"CIRCUIT BREAKER TRIPPED for ticket '{state.ticket_id}'. Halting execution."
             )
             raise CircuitBreakerTrippedError(
-                f"Circuit breaker tripped for '{state.ticket_id}': "
-                f"Exceeded {max_retries} retries without QA PASS verdict.",
+                f"Circuit breaker tripped for '{state.ticket_id}': Exceeded {max_retries} retries without QA PASS verdict. Latest feedback: {state.feedback}",
                 state=state,
             )
 
