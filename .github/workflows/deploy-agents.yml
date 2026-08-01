@@ -128,7 +128,7 @@ jobs:
                           'typing-extensions>=4.12.0',
                       ],
                       extra_packages=['agents', 'orchestration', 'tools'],
-                      env=[{"name": "GCP_PROJECT_ID", "value": project_id}],
+                      env=[{'name': 'GCP_PROJECT_ID', 'value': project_id}],
                   )
                   print(f'Successfully deployed live Reasoning Engine resource: {engine.resource_name}')
               except Exception as e:
