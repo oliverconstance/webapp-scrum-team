@@ -108,13 +108,13 @@ jobs:
                       project=project_id,
                       location=region,
                       staging_bucket=f'gs://{project_id}-vertex-staging',
+                      service_account='agent-scrum-reasoning-gemini-a@multi-agent-dev-team-502213.iam.gserviceaccount.com',
                   )
                   print(f'Staging and deploying Scrum orchestrator to Reasoning Engine in {project_id}/{region}...')
                   engine = re_module.ReasoningEngine.create(
                       reasoning_engine=create_scrum_team_orchestrator(),
                       display_name='gcp-scrum-team-orchestrator',
                       description='GCP-Native Multi-Agent Scrum Team Orchestrator',
-                      service_account='agent-scrum-reasoning-gemini-a@multi-agent-dev-team-502213.iam.gserviceaccount.com',
                       requirements=[
                           'google-cloud-aiplatform[reasoningengine,langchain]>=1.70.0',
                           'opentelemetry-api<=1.43.0',
