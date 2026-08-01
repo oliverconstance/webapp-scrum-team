@@ -3,7 +3,7 @@ agent:
   name: cloud_backend
   role: Principal GCP Backend Engineer
   model:
-    engine: gemini-3.1-pro
+    engine: gemini-3.1-pro-preview
     provider: google-vertex-ai
     temperature: 0.1
     top_p: 0.95

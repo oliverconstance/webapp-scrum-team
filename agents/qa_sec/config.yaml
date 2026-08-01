@@ -3,7 +3,7 @@ agent:
   name: qa_sec
   role: QA & Cloud Security Auditor
   model:
-    engine: gemini-3.6-flash
+    engine: gemini-3.6-flash-preview
     provider: google-vertex-ai
     temperature: 0.1
     top_p: 0.90
