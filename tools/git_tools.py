@@ -29,6 +29,13 @@ def _get_github_client(token: str | None = None) -> Github:
     """
     auth_token = token or os.environ.get("GITHUB_TOKEN")
     if not auth_token:
+        try:
+            from tools.secret_tools import get_gcp_secret
+            auth_token = get_gcp_secret("github-token")
+        except Exception as e:
+            logger.warning(f"Failed to auto-fetch github-token from Secret Manager: {e}")
+
+    if not auth_token:
         raise ValueError(
             "GitHub authentication token missing. Please set GITHUB_TOKEN in environment "
             "or configure GitHub App credentials."
