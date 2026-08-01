@@ -31,7 +31,7 @@ def _get_github_client(token: str | None = None) -> Github:
     if not auth_token:
         try:
             from tools.secret_tools import get_gcp_secret
-            auth_token = get_gcp_secret("github-token")
+            auth_token = get_gcp_secret("github-token", project_id="multi-agent-dev-team-502213")
         except Exception as e:
             logger.warning(f"Failed to auto-fetch github-token from Secret Manager: {e}")
 
