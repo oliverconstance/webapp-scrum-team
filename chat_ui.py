@@ -18,18 +18,18 @@ except FileNotFoundError:
 st.set_page_config(page_title="Scrum Team Orchestrator", page_icon="🚀", layout="wide")
 
 
-# Initialize Vertex AI connection only once
+# Initialize Vertex AI connection only once per configuration
 @st.cache_resource
-def init_agent():
-    vertexai.init(project=PROJECT_ID, location=LOCATION)
+def init_agent(project_id, location, agent_id):
+    vertexai.init(project=project_id, location=location)
     agent = reasoning_engines.ReasoningEngine(
-        f"projects/{PROJECT_ID}/locations/{LOCATION}/reasoningEngines/{AGENT_ID}"
+        f"projects/{project_id}/locations/{location}/reasoningEngines/{agent_id}"
     )
     return agent
 
 
 try:
-    agent = init_agent()
+    agent = init_agent(PROJECT_ID, LOCATION, AGENT_ID)
 except Exception as e:
     st.error(f"Failed to connect to Vertex AI: {e}")
     st.stop()
