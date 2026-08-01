@@ -17,7 +17,7 @@ jobs:
 
     env:
       GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-      GCP_REGION: europe-west2
+      GCP_REGION: us-central1
       WIF_PROVIDER: ${{ secrets.WIF_PROVIDER_NAME }}
       WIF_SERVICE_ACCOUNT: ${{ secrets.WIF_SERVICE_ACCOUNT_EMAIL }}
 
@@ -72,7 +72,7 @@ jobs:
           poetry install --only main
 
           gcloud config set project ${{ secrets.GCP_PROJECT_ID }}
-          gcloud config set ai_platform/region europe-west2
+          gcloud config set ai_platform/region us-central1
 
           echo "Validating agent persona configurations and pipeline assembly..."
           poetry run python -c "
@@ -94,7 +94,7 @@ jobs:
 
           logging.basicConfig(level=logging.INFO)
           project_id = os.environ.get('GCP_PROJECT_ID')
-          region = os.environ.get('GCP_REGION', 'europe-west2')
+          region = os.environ.get('GCP_REGION', 'us-central1')
 
           if project_id and project_id != 'dummy-project':
               try:
