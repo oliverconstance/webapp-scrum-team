@@ -200,7 +200,10 @@ class LlmAgent:
                 return json.dumps({
                     "status": "FAIL",
                     "failed_criteria": [f"Critical API Failure: {e}"],
-                    "actionable_feedback": "The LLM API call failed. Verify Vertex AI model availability, regions, and permissions."
+                    "actionable_feedback": (
+                        "The LLM API call failed. Verify Vertex AI model "
+                        "availability, regions, and permissions."
+                    )
                 })
             return f"Error executing agent {self.name}: {e}"
 
