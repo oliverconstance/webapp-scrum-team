@@ -127,7 +127,7 @@ class LlmAgent:
 
         try:
             # We use Vertex AI credentials if available, otherwise fallback
-            loc = os.environ.get("GOOGLE_CLOUD_LOCATION", "europe-west2")
+            loc = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
             client = genai.Client(vertexai=True, location=loc)
         except Exception:
             client = genai.Client()
