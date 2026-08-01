@@ -11,6 +11,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 
+from google import genai
+from google.genai import types
 from ruamel.yaml import YAML
 
 from orchestration.circuit_breaker import (
@@ -123,69 +125,77 @@ class LlmAgent:
             f"[{self.name} | {self.model}] Executing prompt for ticket '{state.ticket_id}'..."
         )
 
-        if self.name == "product_architect":
-            state.openapi_spec_path = "api-spec-v1.yaml"
-            state.architecture_summary = (
-                "Serverless GCP Cloud Run architecture with Cloud SQL PostgreSQL & React UI."
-            )
-            state.prd_content = "Product Requirement Document for " + state.feature_name
-            state.arch_spec_content = "6-Domain System Architecture Specification"
-            state.record_iteration(
-                self.name,
-                "generate_specs",
-                "SUCCESS",
-                "PRD, ADR, C4 diagrams, and tickets generated.",
-            )
-            return (
-                f"Architectural specification and tickets for {state.ticket_id} "
-                "generated successfully."
-            )
+        try:
+            # We use Vertex AI credentials if available, otherwise fallback
+            loc = os.environ.get("GOOGLE_CLOUD_LOCATION", "europe-west2")
+            client = genai.Client(vertexai=True, location=loc)
+        except Exception:
+            client = genai.Client()
 
-        elif self.name == "cloud_backend":
-            pr_num = state.retry_count + 1
-            state.pr_number = pr_num
-            state.pr_url = f"https://github.com/example-org/repo/pull/{pr_num}"
-            state.record_iteration(
-                self.name, "backend_implementation", "SUCCESS", f"Created PR #{pr_num}"
-            )
-            return (
-                f"Backend service implementation complete. Created PR #{pr_num} at {state.pr_url}."
-            )
+        # Dynamic tool for state mutation
+        def update_session_state(
+            pr_url: str = "",
+            pr_number: int = 0,
+            architecture_summary: str = "",
+            openapi_spec_path: str = "",
+            prd_content: str = "",
+            arch_spec_content: str = "",
+        ) -> str:
+            """Updates the central Scrum session state.
 
-        elif self.name == "frontend":
-            pr_num = state.retry_count + 1
-            state.pr_number = pr_num
-            state.pr_url = f"https://github.com/example-org/repo/pull/{pr_num}"
-            state.record_iteration(
-                self.name, "frontend_implementation", "SUCCESS", f"Created PR #{pr_num}"
-            )
-            return (
-                f"Frontend Next.js implementation complete across 5 UX states. "
-                f"Created PR #{pr_num} at {state.pr_url}."
-            )
+            Args:
+                pr_url: The URL of the raised pull request.
+                pr_number: The integer PR number.
+                architecture_summary: High level summary of architecture.
+                openapi_spec_path: Path to openapi spec.
+                prd_content: Product requirement document text.
+                arch_spec_content: Architecture spec text.
+            """
+            if pr_url:
+                state.pr_url = pr_url
+            if pr_number:
+                state.pr_number = pr_number
+            if architecture_summary:
+                state.architecture_summary = architecture_summary
+            if openapi_spec_path:
+                state.openapi_spec_path = openapi_spec_path
+            if prd_content:
+                state.prd_content = prd_content
+            if arch_spec_content:
+                state.arch_spec_content = arch_spec_content
+            return "Session state updated successfully."
 
-        elif self.name == "qa_sec":
-            status_val = (
-                "PASS"
-                if state.retry_count > 0 or os.environ.get("MOCK_QA_IMMEDIATE_PASS")
-                else "FAIL"
-            )
-            failed = (
-                []
-                if status_val == "PASS"
-                else ["Scenario 1: Missing RFC 7807 error handler in endpoint."]
-            )
-            import json
+        # Bind tools
+        active_tools = list(self.tools) if self.tools else []
+        if self.name != "qa_sec":
+            active_tools.append(update_session_state)
 
-            return json.dumps(
-                {
-                    "status": status_val,
-                    "failed_criteria": failed,
-                    "actionable_feedback": f"Audit completed with verdict: {status_val}.",
-                }
-            )
+        config = types.GenerateContentConfig(
+            system_instruction=self.instructions,
+            temperature=self.temperature,
+            top_p=self.top_p,
+            max_output_tokens=self.max_output_tokens,
+            tools=active_tools if active_tools else None,
+        )
 
-        return "Agent execution finished."
+        if self.name == "qa_sec":
+            config.response_mime_type = "application/json"
+
+        # Append state to the prompt
+        full_prompt = f"{prompt}\n\nCurrent Session State:\n{state.model_dump_json(indent=2)}"
+
+        try:
+            chat = client.chats.create(model=self.model, config=config)
+            response = chat.send_message(full_prompt)
+            # Log state changes
+            if self.name != "qa_sec":
+                state.record_iteration(
+                    self.name, "llm_execution", "SUCCESS", "LLM completed execution and tool calls."
+                )
+            return response.text or ""
+        except Exception as e:
+            logger.error(f"Error calling LLM for {self.name}: {e}")
+            return f"Error executing agent {self.name}: {e}"
 
 
 class LoopAgent:
