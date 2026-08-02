@@ -348,8 +348,39 @@ class SequentialAgent:
                 state = stage.run(state)
             else:
                 logger.warning(f"Unknown sub-agent type in SequentialAgent: {type(stage)}")
+            self._save_state(state)
+        
+        state.status = "SUCCESS"
+        self._save_state(state)
         logger.info(f"SequentialAgent Pipeline '{self.name}' finished successfully.")
         return state
+
+    def _save_state(self, state: ScrumSessionStateModel):
+        try:
+            import google.cloud.storage as storage
+            project = os.environ.get("GCP_PROJECT_ID", "multi-agent-dev-team-502213")
+            client = storage.Client(project=project)
+            bucket = client.bucket(f"{project}-vertex-staging")
+            blob = bucket.blob(f"states/{state.ticket_id}.json")
+            blob.upload_from_string(state.model_dump_json())
+        except Exception as e:
+            logger.error(f"Failed to save state to GCS: {e}")
+
+    def get_status(self, ticket_id: str) -> dict[str, Any]:
+        """Fetch the current status of a running workflow."""
+        try:
+            import google.cloud.storage as storage
+            import json
+            project = os.environ.get("GCP_PROJECT_ID", "multi-agent-dev-team-502213")
+            client = storage.Client(project=project)
+            bucket = client.bucket(f"{project}-vertex-staging")
+            blob = bucket.blob(f"states/{ticket_id}.json")
+            if blob.exists():
+                data = blob.download_as_string()
+                return json.loads(data)
+            return {"status": "NOT_FOUND", "message": "Ticket state not found"}
+        except Exception as e:
+            return {"status": "ERROR", "message": str(e)}
 
     def query(
         self,
@@ -372,8 +403,25 @@ class SequentialAgent:
                 repo_name=repo_name,
                 branch_name=branch_name,
             )
-        result_state = self.run(state)
-        return cast(dict[str, Any], result_state.to_typed_dict())
+            state.status = "IN_PROGRESS"
+        
+        self._save_state(state)
+        
+        import threading
+        def _background_run():
+            try:
+                self.run(state)
+            except Exception as e:
+                logger.error(f"Background run failed: {e}")
+                state.status = "ERROR"
+                state.feedback = f"Fatal Error: {e}"
+                self._save_state(state)
+                
+        thread = threading.Thread(target=_background_run)
+        thread.daemon = True
+        thread.start()
+        
+        return cast(dict[str, Any], state.to_typed_dict())
 
 
 # ------------------------------------------------------------------------------
