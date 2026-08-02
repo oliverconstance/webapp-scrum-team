@@ -128,7 +128,8 @@ class LlmAgent:
         try:
             # The 3.x preview models are hosted in the 'global' endpoint
             loc = os.environ.get("VERTEX_AI_MODEL_LOCATION", "global")
-            client = genai.Client(vertexai=True, location=loc)
+            project = os.environ.get("GCP_PROJECT_ID", "multi-agent-dev-team-502213")
+            client = genai.Client(vertexai=True, project=project, location=loc)
         except Exception:
             client = genai.Client()
 
