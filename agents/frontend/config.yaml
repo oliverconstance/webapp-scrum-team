@@ -3,7 +3,7 @@ agent:
   name: frontend
   role: Senior Frontend Engineer
   model:
-    engine: gemini-3.6-flash
+    engine: gemini-2.5-pro
     provider: google-vertex-ai
     temperature: 0.2
     top_p: 0.90
