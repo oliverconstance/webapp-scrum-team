@@ -51,7 +51,7 @@ def load_persona_config(persona_dir: Path) -> dict[str, Any]:
     return {
         "name": agent_meta.get("name", persona_dir.name),
         "role": agent_meta.get("role", f"Scrum Persona {persona_dir.name}"),
-        "model": model_meta.get("engine", "gemini-3.1-pro"),
+        "model": model_meta.get("engine", "gemini-2.5-flash"),
         "temperature": model_meta.get("temperature", 0.2),
         "top_p": model_meta.get("top_p", 0.95),
         "max_output_tokens": model_meta.get("max_output_tokens", 8192),
